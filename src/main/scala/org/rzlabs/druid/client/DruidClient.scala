@@ -235,6 +235,12 @@ abstract class DruidClient(val host: String,
       jsonMapper.readValue(resp, new TypeReference[List[MetadataResponse]] {})
     DruidDataSource(dataSource, lmr.head, List(in))
   }
+
+  def serverStatus: ServerStatus = {
+    val url = s"http://$host:$port/status"
+    val is: InputStream = get(url)
+    jsonMapper.readValue(is, new TypeReference[ServerStatus] {})
+  }
 }
 
 
@@ -284,5 +290,18 @@ class DruidQueryServerClient(host: String, port: Int, useSmile: Boolean = false)
   def metadata(dataSource: String, fullIndex: Boolean): DruidDataSource = {
     metadata(url, dataSource, fullIndex)
   }
+}
 
+class DruidCoordinatorClient(host: String, port: Int, useSmile: Boolean = false)
+  extends DruidClient(host, port, useSmile = ) {
+
+  @transient val urlPrefix = s"http://$host:$port/druid/coordinator/v1"
+
+  def this(t: (String, Int)) = {
+    this(t._1, t._2)
+  }
+
+  def this(s: String) = {
+    this(DruidClient.hostPort(s))
+  }
 }

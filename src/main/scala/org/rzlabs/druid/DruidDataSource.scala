@@ -3,7 +3,7 @@ package org.rzlabs.druid
 import com.clearspring.analytics.stream.cardinality.ICardinality
 import org.apache.spark.sql.types._
 import org.joda.time.Interval
-import org.rzlabs.druid.client.{ColumnDetail, MetadataResponse}
+import org.rzlabs.druid.client.{Aggregator, ColumnDetail, MetadataResponse, TimestampSpec}
 
 /**
  * Driud data type enum. All the value name are from the
@@ -49,12 +49,12 @@ object DruidColumn {
             timeTicks: Long): DruidColumn = {
 
     if (name == DruidDataSource.INNER_TIME_COLUMN_NAME) {
-      DruidTimeDimension(name, DruidDataType.withName(c.typ), c.size, Math.min(numRows, timeTicks))
+      DruidTimeDimension(name, DruidDataType.withName(c.`type`), c.size, Math.min(numRows, timeTicks))
     } else if (c.cardinality.isDefined) {
-      DruidDimension(name, DruidDataType.withName(c.typ), c.size, c.cardinality.get)
+      DruidDimension(name, DruidDataType.withName(c.`type`), c.size, c.cardinality.get)
     } else {
       // The metric's cardinality is considered the same as the datasource row number.
-      DruidMetric(name, DruidDataType.withName(c.typ), c.size, numRows)
+      DruidMetric(name, DruidDataType.withName(c.`type`), c.size, numRows)
     }
   }
 }
@@ -91,12 +91,15 @@ case class DruidDataSource(name: String,
                            size: Long,
                            numRows: Long,
                            timeTicks: Long,
+                           aggregators: Map[String, Aggregator] = null,
+                           timestampSpec: TimestampSpec = null,
                            druidVersion: String = null) extends DruidDataSourceCapability {
 
   import DruidDataSource._
 
   lazy val timeDimension: Option[DruidColumn] = columns.values.find {
     case c if c.name == INNER_TIME_COLUMN_NAME => true
+    case c if timestampSpec != null && c.name == timestampSpec.column => true
     case _ => false
   }
 
@@ -135,6 +138,7 @@ object DruidDataSource {
       case (name, columnDetail) =>
         name -> DruidColumn(name, columnDetail, numRows, timeTicks)
     }
-    new DruidDataSource(dataSource, ins, columns, mr.size, numRows, timeTicks)
+    new DruidDataSource(dataSource, ins, columns, mr.size, numRows, timeTicks,
+      mr.aggregators, mr.timestampSpec)
   }
 }

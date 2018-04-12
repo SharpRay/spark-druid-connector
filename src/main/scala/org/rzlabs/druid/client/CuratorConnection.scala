@@ -28,16 +28,17 @@ class CuratorConnection(val zkHost: String,
   import Utils.jsonFormat
 
   // Cache the active historical servers.
-  val serverSegmentsCacheMap: MMap[String, PathChildrenCache] = MMap()
-  val serverSegmentsCacheLock = new Object
-  var brokers: Vector[String] = Vector()
-  val brokersCacheLock = new Object
+  private val serverSegmentsCacheMap: MMap[String, PathChildrenCache] = MMap()
+  private val serverSegmentsCacheLock = new Object
+  // serverName -> serverList
+  private var discoveryServers: MMap[String, Seq[String]] = MMap()
+  private val discoveryCacheLock = new Object
 
   val announcementsPath = ZKPaths.makePath(options.zkDruidPath, "announcements")
   val serverSegmentsPath = ZKPaths.makePath(options.zkDruidPath, "segments")
   val discoveryPath = ZKPaths.makePath(options.zkDruidPath, "discovery")
-  val brokersPath = ZKPaths.makePath(discoveryPath,
-    if (options.zkQualifyDiscoveryNames) s"${options.zkDruidPath}:broker" else "broker")
+  val brokersPath = ZKPaths.makePath(discoveryPath, getServiceName("broker"))
+  val coordinatorsPath = ZKPaths.makePath(discoveryPath, getServiceName("coordinator"))
 
   val framework: CuratorFramework = CuratorFrameworkFactory.builder
     .connectString(zkHost)
@@ -62,36 +63,47 @@ class CuratorConnection(val zkHost: String,
     execSvc
   )
 
+  val coordinatorsCache: PathChildrenCache = new PathChildrenCache(
+    framework,
+    coordinatorsPath,
+    true,
+    true,
+    execSvc
+  )
+
   /**
-   * A [[PathChildrenCacheListener]] which is used to monitor brokers' in and out.
+   * A [[PathChildrenCacheListener]] which is used to monitor
+   * coordinators/brokers/overlords' in and out.
+   * In the case of multiple brokers all them will be active if necessary.
+   * In the case of multiple coordinators just one is active while others are standby.
+   *
    */
-  val brokersListener = new PathChildrenCacheListener {
+  val discoveryListener = new PathChildrenCacheListener {
     override def childEvent(client: CuratorFramework, event: PathChildrenCacheEvent): Unit = {
       event.getType match {
         case eventType @ PathChildrenCacheEvent.Type.CHILD_ADDED |
              PathChildrenCacheEvent.Type.CHILD_REMOVED =>
-          val data = getZkDataForNode(event.getData.getPath)
-          val druidNode = parse(new String(data)).extract[DruidNode]
-          val host = s"${druidNode.address}:${druidNode.port}"
-          if (eventType == PathChildrenCacheEvent.Type.CHILD_ADDED) {
-            brokersCacheLock.synchronized {
-              if (brokers.contains(host)) {
-                logError("New broker[%s] but there was already one, ignoreing new one.", host)
+          discoveryCacheLock.synchronized {
+            val data = getZkDataForNode(event.getData.getPath)
+            val druidNode = parse(new String(data)).extract[DruidNode]
+            val host = s"${druidNode.address}:${druidNode.port}"
+            val serviceName = druidNode.name
+            val serverSeq = getServerSeq(serviceName)
+            if (eventType == PathChildrenCacheEvent.Type.CHILD_ADDED) {
+              if (serverSeq.contains(host)) {
+                logError("New server[%s] but there was already one, ignoreing new one.", host)
               } else {
-                brokers = brokers :+ host
-                logDebug("New broker[%s] is added to cache.", host)
+                discoveryServers(serviceName) = serverSeq :+ host
+                logDebug("New serverr[%s] is added to cache.", host)
+              }
+            } else {
+              if (serverSeq.contains(host)) {
+                discoveryServers(serviceName) = serverSeq.filterNot(_ == host)
+                logDebug("Server[%] is offline, so remove it from the cache.", host)
+              } else {
+                logError("Server[%s] is not in the cache, how to remove it from cache?", host)
               }
             }
-          } else {
-            brokersCacheLock.synchronized {
-              if (brokers.contains(host)) {
-                brokers = brokers.filterNot(_ == host)
-                logDebug("Broker[%] is offline, so remove it from the cache.", host)
-              } else {
-                logError("Broker[%s] is not in the cache, how to remove it from cache?", host)
-              }
-            }
-
           }
         case _ => ()
       }
@@ -173,19 +185,38 @@ class CuratorConnection(val zkHost: String,
   }
 
   announcementsCache.getListenable.addListener(announcementsListener)
-  brokersCache.getListenable.addListener(brokersListener)
+  brokersCache.getListenable.addListener(discoveryListener)
+  coordinatorsCache.getListenable.addListener(discoveryListener)
 
   framework.start()
   announcementsCache.start(StartMode.BUILD_INITIAL_CACHE)
   brokersCache.start(StartMode.POST_INITIALIZED_EVENT)
 
+//  def getService(name: String): String = {
+//    getServices(name).head
+//  }
+
   def getService(name: String): String = {
-    getServices(name).head
+    val serviceName = getServiceName(name)
+    discoveryCacheLock.synchronized {
+      var serverSeq = getServerSeq(serviceName)
+      if (serverSeq.isEmpty) {
+        val serverSeq = getServices(name)
+        if (serverSeq.isEmpty) {
+          return null
+        } else {
+          discoveryServers(serviceName) = serverSeq
+        }
+      }
+      val server = serverSeq.head
+      discoveryServers(serviceName) = serverSeq.tail :+ server
+      server
+    }
   }
 
   def getServices(name: String): Seq[String] = {
 
-    val serviceName = if (options.zkQualifyDiscoveryNames) s"${options.zkDruidPath}:$name" else name
+    val serviceName = getServiceName(name)
     val servicePath = ZKPaths.makePath(discoveryPath, serviceName)
     val childrenNodes: java.util.List[String] = framework.getChildren.forPath(servicePath)
     var services: Seq[String] = Nil
@@ -209,15 +240,25 @@ class CuratorConnection(val zkHost: String,
   }
 
   def getBroker: String = {
-    brokersCacheLock.synchronized {
-      if (brokers.isEmpty) {
-        brokers = getServices("broker").toVector
-      }
-      val broker = brokers.head
-      // Get broker in the round-robin manner.
-      brokers = brokers.tail :+ broker
-      broker
+    getService("broker")
+  }
+
+  def getCoordinator: String = {
+    getService("coordinator")
+  }
+
+  private def getServerSeq(name: String): Seq[String] = {
+    discoveryServers.get(name).getOrElse {
+      val l: List[String] = List()
+      discoveryServers(name) = l
+      l
     }
+  }
+
+  private def getServiceName(name: String): String = {
+    if (options.zkQualifyDiscoveryNames) {
+      s"${options.zkDruidPath}:$name"
+    } else name
   }
 
   private def getServerKey(event: PathChildrenCacheEvent): String = {

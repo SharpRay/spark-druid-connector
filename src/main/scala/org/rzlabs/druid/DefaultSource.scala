@@ -50,14 +50,21 @@ class DefaultSource extends RelationProvider with MyLogging {
     val poolMaxConnections: Int = parameters.getOrElse(CONN_POOL_MAX_CONNECTIONS,
       DEFAULT_CONN_POOL_MAX_CONNECTIONS).toInt
 
+    val loadMetadataFromAllSegments: Boolean = parameters.getOrElse(LOAD_METADATA_FROM_ALL_SEGMENTS,
+      DEFAULT_LOAD_METADATA_FROM_ALL_SEGMENTS).toBoolean
+
     val queryGranularity = DruidQueryGranularity(
       parameters.getOrElse(QUERY_GRANULARITY, DEFAULT_QUERY_GRANULARITY))
 
     val druidRelationOptions = DruidOptions(
+      zkHost,
       zkSessionTimeout,
       zkEnableCompression,
       zKQualifyDiscoveryNames,
       zkDruidPath,
+      poolMaxConnectionsPerRoute,
+      poolMaxConnections,
+      loadMetadataFromAllSegments,
       queryGranularity
     )
 
@@ -121,4 +128,8 @@ object DefaultSource {
    */
   val CONN_POOL_MAX_CONNECTIONS = "maxConnections"
   val DEFAULT_CONN_POOL_MAX_CONNECTIONS = "100""
+
+  val LOAD_METADATA_FROM_ALL_SEGMENTS = "loadMetadataFromAllSegments"
+  val DEFAULT_LOAD_METADATA_FROM_ALL_SEGMENTS = "true"
+
 }

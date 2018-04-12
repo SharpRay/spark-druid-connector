@@ -85,3 +85,19 @@ case class MetadataResponse(id: String,
   }
 }
 
+@JsonIgnoreProperties(ignoreUnknown = true)
+case class ModuleInfo(name: String,
+                      artifact: String,
+                      version: String)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+case class ServerMemory(maxMemory: Long,
+                        totalMemory: Long,
+                        freeMemory: Long,
+                        usedMemory: Long)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+case class ServerStatus(version: String,
+                        modules: List[ModuleInfo],
+                        memory: ServerMemory)
+
