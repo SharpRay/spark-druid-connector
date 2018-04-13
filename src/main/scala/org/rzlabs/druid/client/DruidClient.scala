@@ -5,6 +5,7 @@ import java.io.InputStream
 import com.fasterxml.jackson.core.`type`.TypeReference
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.jaxrs.smile.SmileMediaTypes
+import org.apache.commons.io.IOUtils
 import org.apache.commons.lang.exception.ExceptionUtils
 import org.apache.http.{HttpEntity, HttpHeaders}
 import org.apache.http.client.methods._
@@ -150,10 +151,10 @@ abstract class DruidClient(val host: String,
   protected def perform(url: String,
                         reqType: String => HttpRequestBase,
                         payload: ObjectNode,
-                        reqHeaders: Map[String, String]): InputStream = {
+                        reqHeaders: Map[String, String]): String = {
     var resp: CloseableHttpResponse = null
 
-    val tis: Try[InputStream] = for {
+    val tis: Try[String] = for {
       r <- Try {
         val req: CloseableHttpClient = httpClient
         val request = reqType(url)
@@ -175,7 +176,7 @@ abstract class DruidClient(val host: String,
         val status = r.getStatusLine.getStatusCode
         if (status >= 200 && status < 300) {
           if (r.getEntity != null) {
-            r.getEntity.getContent
+            IOUtils.toString(r.getEntity.getContent)
           } else {
             throw new DruidDataSourceException(s"Unexpected response status: ${r.getStatusLine}")
           }
@@ -194,13 +195,13 @@ abstract class DruidClient(val host: String,
 
   protected def post(url: String,
                      payload: ObjectNode,
-                     reqHeaders: Map[String, String] = null): InputStream = {
+                     reqHeaders: Map[String, String] = null): String = {
     perform(url, postRequest _, payload, reqHeaders)
   }
 
   protected def get(url: String,
                     payload: ObjectNode = null,
-                    reqHeaders: Map[String, String] = null): InputStream = {
+                    reqHeaders: Map[String, String] = null): String = {
     perform(url, getRequest _, payload, reqHeaders)
   }
 
@@ -230,7 +231,7 @@ abstract class DruidClient(val host: String,
         .add("timestampSpec")).asInstanceOf[ObjectNode]
       .put("merge", "true")
 
-    val resp: InputStream = post(url, payload)
+    val resp: String = post(url, payload)
     val lmr: List[MetadataResponse] =
       jsonMapper.readValue(resp, new TypeReference[List[MetadataResponse]] {})
     DruidDataSource(dataSource, lmr.head, List(in))
@@ -238,7 +239,7 @@ abstract class DruidClient(val host: String,
 
   def serverStatus: ServerStatus = {
     val url = s"http://$host:$port/status"
-    val is: InputStream = get(url)
+    val is: String = get(url)
     jsonMapper.readValue(is, new TypeReference[ServerStatus] {})
   }
 }
@@ -272,7 +273,7 @@ class DruidQueryServerClient(host: String, port: Int, useSmile: Boolean = false)
     val payload: ObjectNode = jsonMapper.createObjectNode()
       .put("queryType", "timeBoundary")
       .put("dataSource", dataSource)
-    val resp: InputStream = post(url, payload)
+    val resp: String = post(url, payload)
     val objectNode = jsonMapper.readTree(resp)
     val maxTime: java.util.List[String] = objectNode.findValuesAsText("maxTime")
     val minTime: java.util.List[String] = objectNode.findValuesAsText("minTime")
