@@ -1,13 +1,14 @@
 package org.rzlabs.druid.metadata
 
-import org.apache.spark.sql.{MyLogging, SQLContext}
+import org.apache.spark.sql.MyLogging
 import org.apache.spark.util.MyThreadUtils
-import org.joda.time.Interval
+import org.codehaus.jackson.annotate.JsonIgnoreProperties
 import org.rzlabs.druid._
 import org.rzlabs.druid.client._
 
 import scala.collection.mutable.{Map => MMap}
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 case class DruidNode(name: String,
                      id: String,
                      address: String,
