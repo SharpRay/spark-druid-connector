@@ -33,8 +33,8 @@ trait DruidRelationInfoCache {
 
 
   def buildColumnInfos(druidDataSource: DruidDataSource,
-                       userSpecifiedColumnInfos: List[DruidRelationColumnInfo],
-                       timeDimensionCol: String): Map[String, DruidRelationColumn] = {
+                       userSpecifiedColumnInfos: List[DruidRelationColumnInfo]
+                       ): Map[String, DruidRelationColumn] = {
     val columns: Map[String, DruidColumn] = druidDataSource.columns
 
     def getDruidMetric(metricName: Option[String]): Option[DruidMetric] = {
@@ -52,8 +52,8 @@ trait DruidRelationInfoCache {
         val druidRelationColumn = if (ci != null) {
           val hllMetric = getDruidMetric(ci.hllMetric)
           val sketchMetric = getDruidMetric(ci.sketchMetric)
-          DruidRelationColumn(columnName, hllMetric, sketchMetric)
-        } else DruidRelationColumn(columnName)
+          DruidRelationColumn(columnName, druidColumn, hllMetric, sketchMetric)
+        } else DruidRelationColumn(columnName, druidColumn)
         val cardinality: Option[Long] = if (druidColumn.isInstanceOf[DruidTimeDimension]) {
           Some(druidColumn.asInstanceOf[DruidTimeDimension].cardinality)
         } else if (druidColumn.isInstanceOf[DruidDimension]) {
@@ -65,15 +65,22 @@ trait DruidRelationInfoCache {
     }
   }
 
-  def druidRelation(sqlContext: SQLContext,
-                    dataSourceName: String,
+  def druidRelation(dataSourceName: String,
                     timeDimensionCol: String,
                     userSpecifiedColumnInfos: List[DruidRelationColumnInfo],
                     options: DruidOptions): DruidRelationInfo = {
 
     val name = DruidRelationName(options.zkHost, dataSourceName)
     val druidDS = getDataSourceInfo(name, options)
-    val columnInfos = buildColumnInfos(druidDS, userSpecifiedColumnInfos,timeDimensionCol)
+    val columnInfos = buildColumnInfos(druidDS, userSpecifiedColumnInfos)
+    val timeDimCol = if (druidDS.timestampSpec != null) {
+      druidDS.timestampSpec.column
+    } else if (timeDimensionCol != null) {
+      timeDimensionCol
+    } else {
+      throw new DruidDataSourceException("The datasource time dimension should be specified.")
+    }
+    DruidRelationInfo(name, timeDimCol, columnInfos, options)
   }
 }
 

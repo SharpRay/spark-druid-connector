@@ -9,7 +9,7 @@ case class DruidRelationColumnInfo(column: String,
                                    cardinalityEstimate: Option[Long] = None)
 
 case class DruidRelationColumn(column: String,
-                               druidColumn: Option[DruidColumn] = None,
+                               druidColumn: DruidColumn,
                                hllMetric: Option[DruidMetric] = None,
                                sketchMetric: Option[DruidMetric] = None,
                                cardinalityEstimate: Option[Long] = None) {

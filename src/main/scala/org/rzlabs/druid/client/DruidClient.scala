@@ -113,7 +113,7 @@ abstract class DruidClient(val host: String,
     val sTime = System.currentTimeMillis()
     val r = HttpClients.custom().setConnectionManager(ConnectionManager.pool).build()
     val eTime = System.currentTimeMillis()
-    logDebug("Time to get httpClient: {}", eTime - sTime)
+    logDebug(s"Time to get httpClient: ${eTime - sTime}")
     logDebug("Pool Stats: {}", ConnectionManager.pool.getTotalStats)
     r
   }
@@ -293,7 +293,7 @@ class DruidQueryServerClient(host: String, port: Int, useSmile: Boolean = false)
 }
 
 class DruidCoordinatorClient(host: String, port: Int, useSmile: Boolean = false)
-  extends DruidClient(host, port, useSmile = ) {
+  extends DruidClient(host, port, useSmile) {
 
   @transient val urlPrefix = s"http://$host:$port/druid/coordinator/v1"
 
@@ -304,4 +304,6 @@ class DruidCoordinatorClient(host: String, port: Int, useSmile: Boolean = false)
   def this(s: String) = {
     this(DruidClient.hostPort(s))
   }
+
+  override def timeBoundary(dataSource: String): Interval = null
 }

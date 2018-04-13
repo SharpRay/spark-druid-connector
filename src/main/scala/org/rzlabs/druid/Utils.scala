@@ -8,15 +8,15 @@ import org.rzlabs.druid.metadata.DruidRelationColumnInfo
 
 object Utils extends MyLogging {
 
-  implicit val jsonFormat = Serialization.formats(
-    ShortTypeHints(
-      List(
-        classOf[DruidRelationColumnInfo],
-        classOf[DurationGranularity],
-        classOf[PeriodGranularity]
-      )
-    )
-  ) + new DruidQueryGranularitySerializer
+//  implicit val jsonFormat = Serialization.formats(
+//    ShortTypeHints(
+//      List(
+//        classOf[DruidRelationColumnInfo],
+//        classOf[DurationGranularity],
+//        classOf[PeriodGranularity]
+//      )
+//    )
+//  ) + new DruidQueryGranularitySerializer
 
   def intervalsMillis(intervals: List[Interval]): Long = {
     intervals.foldLeft[Long](0L) {

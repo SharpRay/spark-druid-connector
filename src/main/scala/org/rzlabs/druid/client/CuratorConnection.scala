@@ -15,6 +15,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.rzlabs.druid.metadata.{DruidClusterInfo, DruidNode, DruidOptions}
 import org.rzlabs.druid.{DruidDataSourceException, Utils}
+import org.fasterxml.jackson.databind.ObjectMapper._
 
 import scala.collection.mutable.{Map => MMap}
 
@@ -24,8 +25,6 @@ class CuratorConnection(val zkHost: String,
                         execSvc: ExecutorService,
                         updateTimeBoundary: Array[Byte] => Unit
                         ) extends MyLogging {
-
-  import Utils.jsonFormat
 
   // Cache the active historical servers.
   private val serverSegmentsCacheMap: MMap[String, PathChildrenCache] = MMap()
@@ -81,11 +80,11 @@ class CuratorConnection(val zkHost: String,
   val discoveryListener = new PathChildrenCacheListener {
     override def childEvent(client: CuratorFramework, event: PathChildrenCacheEvent): Unit = {
       event.getType match {
-        case eventType @ PathChildrenCacheEvent.Type.CHILD_ADDED |
-             PathChildrenCacheEvent.Type.CHILD_REMOVED =>
+        case eventType @ (PathChildrenCacheEvent.Type.CHILD_ADDED |
+             PathChildrenCacheEvent.Type.CHILD_REMOVED) =>
           discoveryCacheLock.synchronized {
             val data = getZkDataForNode(event.getData.getPath)
-            val druidNode = parse(new String(data)).extract[DruidNode]
+            val druidNode = jsonMapper.readValue(new String(data), classOf[DruidNode])
             val host = s"${druidNode.address}:${druidNode.port}"
             val serviceName = druidNode.name
             val serverSeq = getServerSeq(serviceName)
@@ -121,8 +120,8 @@ class CuratorConnection(val zkHost: String,
   val segmentsListener = new PathChildrenCacheListener {
     override def childEvent(client: CuratorFramework, event: PathChildrenCacheEvent): Unit = {
       event.getType match {
-        case eventType @ PathChildrenCacheEvent.Type.CHILD_ADDED |
-             PathChildrenCacheEvent.Type.CHILD_REMOVED =>
+        case eventType @ (PathChildrenCacheEvent.Type.CHILD_ADDED |
+             PathChildrenCacheEvent.Type.CHILD_REMOVED) =>
           logDebug(s"event ${event.getType} occurred.")
           val nodeData = getZkDataForNode(event.getData.getPath)
           if (nodeData == null) {
@@ -221,11 +220,13 @@ class CuratorConnection(val zkHost: String,
     val childrenNodes: java.util.List[String] = framework.getChildren.forPath(servicePath)
     var services: Seq[String] = Nil
     try {
-      for (childNode <- childrenNodes) {
+      val iter = childrenNodes.iterator()
+      while (iter.hasNext) {
+        val childNode = iter.next()
         val childPath = ZKPaths.makePath(servicePath, childNode)
         val data: Array[Byte] = getZkDataForNode(childPath)
         if (data != null) {
-          val druidNode = parse(new String(data)).extract[DruidNode]
+          val druidNode = jsonMapper.readValue(new String(data), classOf[DruidNode])
           services = services :+ s"${druidNode.address}:${druidNode.port}"
         }
       }

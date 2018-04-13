@@ -17,6 +17,6 @@ case class DruidRelationName(zkHost: String, druidDataSource: String)
 
 case class DruidRelationInfo(fullName: DruidRelationName,
                              timeDimensionCol: String,
-                             val druidColumn: Map[String, DruidRelationColumn],
+                             val druidColumns: Map[String, DruidRelationColumn],
                              val options: DruidOptions)
 

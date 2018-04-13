@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.`type`.TypeReference
 import org.apache.spark.sql.{MyLogging, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, RelationProvider}
 import org.fasterxml.jackson.databind.ObjectMapper._
-import org.rzlabs.druid.metadata.{DruidRelationColumnInfo, DruidOptions}
+import org.rzlabs.druid.metadata.{DruidMetadataCache, DruidOptions, DruidRelationColumnInfo, DruidRelationInfo}
 
 class DefaultSource extends RelationProvider with MyLogging {
 
@@ -19,7 +19,7 @@ class DefaultSource extends RelationProvider with MyLogging {
     )
 
     val timeDimensionCol: String = parameters.getOrElse(TIME_DIMENSION_COLUMN_NAME,
-      DEFAULT_TIME_DIMENSION_COLUMN_NAME)
+      null)
 
     val hyperUniqueColumnInfos: List[DruidRelationColumnInfo] =
       parameters.get(HYPER_UNIQUE_COLUMN_INFO)
@@ -68,7 +68,13 @@ class DefaultSource extends RelationProvider with MyLogging {
       queryGranularity
     )
 
+    val druidRelationInfo: DruidRelationInfo =
+      DruidMetadataCache.druidRelation(dsName,
+        timeDimensionCol,
+        hyperUniqueColumnInfos ++ sketchColumnInfos,
+        druidRelationOptions)
 
+    DruidRelation(druidRelationInfo)(sqlContext)
   }
 }
 
@@ -83,7 +89,6 @@ object DefaultSource {
    * Time dimension name in a Druid datasource.
    */
   val TIME_DIMENSION_COLUMN_NAME = "timeDimensionColumn"
-  val DEFAULT_TIME_DIMENSION_COLUMN_NAME = "__time"
 
   val HYPER_UNIQUE_COLUMN_INFO = "hyperUniqueColumnInfos"
 
@@ -127,7 +132,7 @@ object DefaultSource {
    * The max simultaneous live connections of the Druid cluster.
    */
   val CONN_POOL_MAX_CONNECTIONS = "maxConnections"
-  val DEFAULT_CONN_POOL_MAX_CONNECTIONS = "100""
+  val DEFAULT_CONN_POOL_MAX_CONNECTIONS = "100"
 
   val LOAD_METADATA_FROM_ALL_SEGMENTS = "loadMetadataFromAllSegments"
   val DEFAULT_LOAD_METADATA_FROM_ALL_SEGMENTS = "true"
