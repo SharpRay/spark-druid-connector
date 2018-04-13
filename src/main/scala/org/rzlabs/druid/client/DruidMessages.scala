@@ -1,6 +1,7 @@
 package org.rzlabs.druid.client
 
 import com.fasterxml.jackson.annotation._
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize
 import org.joda.time.Interval
 import org.rzlabs.druid.{DruidQueryGranularity, NoneGranularity}
 
@@ -19,6 +20,7 @@ import org.rzlabs.druid.{DruidQueryGranularity, NoneGranularity}
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 case class ColumnDetail(`type`: String, size: Long,
+                        @JsonDeserialize(contentAs = classOf[java.lang.Long])
                          cardinality: Option[Long],
                          minValue: Option[String],
                          maxValue: Option[String],
@@ -56,6 +58,7 @@ case class MetadataResponse(id: String,
                             intervals: List[String],
                             columns: Map[String, ColumnDetail],
                             size: Long,
+                            @JsonDeserialize(contentAs = classOf[java.lang.Long])
                             numRows: Option[Long],
                             aggregators: Map[String, Aggregator],
                             timestampSpec: TimestampSpec,
