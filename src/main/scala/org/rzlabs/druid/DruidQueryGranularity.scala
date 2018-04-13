@@ -127,7 +127,7 @@ case class PeriodGranularity(period: Period,
   }
   lazy val periodMillis = period.getValues.zipWithIndex.foldLeft(0L) {
     case (r, p) => r + p._1 *
-      p._2 match {
+      (p._2 match {
         case 0 => 365 * 24 * 3600 * 1000L // year
         case 1 => 30 * 24 * 3600 * 1000L  // month
         case 2 => 7 * 24 * 3600 * 1000L   // week
@@ -136,7 +136,7 @@ case class PeriodGranularity(period: Period,
         case 5 => 60 * 1000L              // minute
         case 6 => 1000L                   // second
         case 7 => 1L                      // millisecond
-      }
+      })
   }
 
   def ndv(ins: List[Interval]) = {
@@ -148,7 +148,6 @@ case class PeriodGranularity(period: Period,
         case e: IllegalArgumentException => None
       }
     }
-    println("period values === " + period.getValues.foreach(println))
     Utils.intervalsMillis(boundedIns) / periodMillis
   }
 }
