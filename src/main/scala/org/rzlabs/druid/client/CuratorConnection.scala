@@ -200,7 +200,7 @@ class CuratorConnection(val zkHost: String,
     discoveryCacheLock.synchronized {
       var serverSeq = getServerSeq(serviceName)
       if (serverSeq.isEmpty) {
-        val serverSeq = getServices(name)
+        serverSeq = getServices(name)
         if (serverSeq.isEmpty) {
           return null
         } else {
