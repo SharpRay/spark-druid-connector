@@ -231,7 +231,7 @@ abstract class DruidClient(val host: String,
     val resp: String = post(url, payload)
     // substitute `queryGranularity` field value if needed.
     val resp1 = jsonMapper.writeValueAsString(DruidQueryGranularity.substitute(
-      jsonMapper.readTree(resp).path(0).asInstanceOf[ObjectNode]))
+      jsonMapper.readTree(resp).path(0)))
 
     logDebug(s"The json response of 'segmentMetadata' query: \n$resp")
     val lmr: List[MetadataResponse] =

@@ -55,8 +55,8 @@ object DruidQueryGranularity {
     }
   }
 
-  def substitute(n: ObjectNode): JsonNode = n.findValuesAsText("queryGranularity") match {
-    case vl: java.util.List[JsonNode] if vl.size > 0 && vl.get(0).isInstanceOf[TextNode] =>
+  def substitute(n: JsonNode): JsonNode = n.findValuesAsText("queryGranularity") match {
+    case vl: java.util.List[String] if vl.size > 0 =>
       val on = jsonMapper.createObjectNode()
       vl.get(0).asInstanceOf[TextNode].toString match {
         case n if n.toLowerCase().equals("none") => on.put("type", "none")
@@ -81,7 +81,7 @@ object DruidQueryGranularity {
           on.put("type", "duration").put("duration", 365 * 24 * 3600 * 1000L)
         case other => throw new DruidDataSourceException(s"Invalid query granularity '$other'")
       }
-      n.replace("queryGranularity", on.asInstanceOf[JsonNode])
+      n.asInstanceOf[ObjectNode].replace("queryGranularity", on)
     case _ => n
   }
 }
