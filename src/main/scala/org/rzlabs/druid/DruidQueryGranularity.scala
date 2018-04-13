@@ -56,7 +56,7 @@ object DruidQueryGranularity {
   }
 
   def substitute(n: JsonNode): JsonNode = n.findValuesAsText("queryGranularity") match {
-    case vl: java.util.List[String] if vl.size > 0 =>
+    case vl: java.util.List[String] if vl.size > 0 && vl.get(0).nonEmpty =>
       val on = jsonMapper.createObjectNode()
       vl.get(0) match {
         case n if n.toLowerCase().equals("none") => on.put("type", "none")

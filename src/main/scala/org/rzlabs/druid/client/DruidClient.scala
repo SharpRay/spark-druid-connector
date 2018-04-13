@@ -236,9 +236,9 @@ abstract class DruidClient(val host: String,
       jsonMapper.readTree(resp).path(0)))
     logDebug(s"After substitution, the json: \n$resp")
 
-    val lmr: List[MetadataResponse] =
-      jsonMapper.readValue(resp1, new TypeReference[List[MetadataResponse]] {})
-    DruidDataSource(dataSource, lmr.head, List(in))
+    val mr: MetadataResponse =
+      jsonMapper.readValue(resp1, new TypeReference[MetadataResponse] {})
+    DruidDataSource(dataSource, mr, List(in))
   }
 
   def serverStatus: ServerStatus = {
