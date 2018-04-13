@@ -12,12 +12,16 @@ object ObjectMapper {
     val om = new ObjectMapper()
     om.registerModule(DefaultScalaModule)
     om.registerModule(new JodaModule)
+    om.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+    om.disable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES)
     om
   }
 
   val smileMapper = {
     val om = new ObjectMapper(new SmileFactory())
     om.registerModule(DefaultScalaModule)
+    om.disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+    om.disable(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES)
     om
   }
 }
