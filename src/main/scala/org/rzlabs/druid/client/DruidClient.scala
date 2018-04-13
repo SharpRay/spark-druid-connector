@@ -232,6 +232,7 @@ abstract class DruidClient(val host: String,
       .put("merge", "true")
 
     val resp: String = post(url, payload)
+    logDebug(s"The json response of 'segmentMetadata' query: \n$resp")
     val lmr: List[MetadataResponse] =
       jsonMapper.readValue(resp, new TypeReference[List[MetadataResponse]] {})
     DruidDataSource(dataSource, lmr.head, List(in))
