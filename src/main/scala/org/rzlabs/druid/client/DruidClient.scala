@@ -1,7 +1,5 @@
 package org.rzlabs.druid.client
 
-import java.io.InputStream
-
 import com.fasterxml.jackson.core.`type`.TypeReference
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.jaxrs.smile.SmileMediaTypes
@@ -15,10 +13,9 @@ import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager
 import org.apache.http.util.EntityUtils
-import org.codehaus.jackson.map.ObjectMapper
 import org.fasterxml.jackson.databind.ObjectMapper._
 import org.joda.time.{DateTime, Interval}
-import org.rzlabs.druid.{DruidDataSource, DruidDataSourceException}
+import org.rzlabs.druid.{DruidDataSource, DruidDataSourceException, DruidQueryGranularity}
 
 import scala.util.Try
 
@@ -232,9 +229,12 @@ abstract class DruidClient(val host: String,
       .put("merge", "true")
 
     val resp: String = post(url, payload)
+    // substitute `queryGranularity` field value if needed.
+    val resp1 = jsonMapper.writeValueAsString(DruidQueryGranularity.substitute(
+      jsonMapper.readTree(resp).path(0).asInstanceOf[ObjectNode]))
     logDebug(s"The json response of 'segmentMetadata' query: \n$resp")
     val lmr: List[MetadataResponse] =
-      jsonMapper.readValue(resp, new TypeReference[List[MetadataResponse]] {})
+      jsonMapper.readValue(resp1, new TypeReference[List[MetadataResponse]] {})
     DruidDataSource(dataSource, lmr.head, List(in))
   }
 

@@ -3,6 +3,8 @@ package org.rzlabs.druid
 import org.joda.time.{DateTime, DateTimeZone, Interval, Period}
 import org.fasterxml.jackson.databind.ObjectMapper._
 import com.fasterxml.jackson.annotation._
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node._
 
 import scala.util.Try
 
@@ -51,6 +53,36 @@ object DruidQueryGranularity {
         case _ => jsonMapper.readValue(s, classOf[PeriodGranularity])
       } get
     }
+  }
+
+  def substitute(n: ObjectNode): JsonNode = n.findValuesAsText("queryGranularity") match {
+    case vl: java.util.List[JsonNode] if vl.size > 0 && vl.get(0).isInstanceOf[TextNode] =>
+      val on = jsonMapper.createObjectNode()
+      vl.get(0).asInstanceOf[TextNode].toString match {
+        case n if n.toLowerCase().equals("none") => on.put("type", "none")
+        case a if a.toLowerCase().equals("all") => on.put("type", "all")
+        case s if s.toLowerCase().equals("second") =>
+          on.put("type", "duration").put("duration", 1000L)
+        case m if m.toLowerCase().equals("minute") =>
+          on.put("type", "duration").put("duration", 60 * 1000L)
+        case fm if fm.toLowerCase().equals("fifteen_minute") =>
+          on.put("type", "duration").put("duration", 15 * 60 * 1000L)
+        case tm if tm.toLowerCase().equals("thirty_minute") =>
+          on.put("type", "duration").put("duration", 30 * 60 * 1000L)
+        case h if h.toLowerCase().equals("hour") =>
+          on.put("type", "duration").put("duration", 3600 * 1000L)
+        case d if d.toLowerCase().equals("day") =>
+          on.put("type", "duration").put("duration", 24 * 3600 * 1000L)
+        case w if w.toLowerCase().equals("week") =>
+          on.put("type", "duration").put("duration", 7 * 24 * 3600 * 1000L)
+        case q if q.toLowerCase().equals("quarter") =>
+          on.put("type", "duration").put("duration", 91 * 24 * 3600 * 1000L)
+        case y if y.toLowerCase().equals("year") =>
+          on.put("type", "duration").put("duration", 365 * 24 * 3600 * 1000L)
+        case other => throw new DruidDataSourceException(s"Invalid query granularity '$other'")
+      }
+      n.replace("queryGranularity", on.asInstanceOf[JsonNode])
+    case _ => n
   }
 }
 
