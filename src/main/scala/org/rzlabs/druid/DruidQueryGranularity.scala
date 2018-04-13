@@ -82,6 +82,7 @@ object DruidQueryGranularity {
         case other => throw new DruidDataSourceException(s"Invalid query granularity '$other'")
       }
       n.asInstanceOf[ObjectNode].replace("queryGranularity", on)
+      n
     case _ => n
   }
 }
