@@ -148,7 +148,7 @@ case class PeriodGranularity(period: Period,
         case e: IllegalArgumentException => None
       }
     }
-    println("period values === " + period.getValues.toString)
+    println("period values === " + period.getValues.foreach(println))
     Utils.intervalsMillis(boundedIns) / periodMillis
   }
 }
