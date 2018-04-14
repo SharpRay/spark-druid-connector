@@ -105,6 +105,7 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
     if (action == null || dataSource == null || interval == null) return
     // Find datasource in `DruidClusterInfo` for each zkHost.
     logInfo(s"${action.toUpperCase()} a segment of dataSource $dataSource with interval $interval.")
+
     cache.foreach {
       case (_, druidClusterInfo) => {
         val dDS: Option[DruidDataSource] = druidClusterInfo.druidDataSources.get(dataSource)
