@@ -24,7 +24,7 @@ object Utils extends MyLogging {
     }
   }
 
-  def updateInterval(interval: Interval, `with`: Interval) = {
+  def updateInterval(interval: Interval, `with`: Interval, withType: String) = {
     interval
       .withStartMillis(Math.min(interval.getStartMillis, `with`.getStartMillis))
       .withEndMillis(Math.max(interval.getEndMillis, `with`.getEndMillis))

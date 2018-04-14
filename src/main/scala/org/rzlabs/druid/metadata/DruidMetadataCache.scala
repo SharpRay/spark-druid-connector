@@ -92,6 +92,8 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
 
   private[metadata] val cache: MMap[String, DruidClusterInfo] = MMap() // zkHost -> DruidClusterInfo
   private val curatorConnections: MMap[String, CuratorConnection] = MMap()
+  private var brokerClient: DruidQueryServerClient = null
+  private var fullIndex: Boolean = true
   val threadPool = MyThreadUtils.newDaemonCachedThreadPool("druidZkEventExec", 10)
 
   /**
@@ -112,9 +114,17 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
         val dDS: Option[DruidDataSource] = druidClusterInfo.druidDataSources.get(dataSource)
         if (dDS.isDefined) {  // find the dataSource the interval should be updated.
           val oldInterval: Interval = dDS.get.intervals(0)
-          // Don't call `segmentMetadata` to update interval (cost to much).
-          val newInterval = Utils.updateInterval(oldInterval, new Interval(interval))
-          dDS.get.intervals = List(newInterval)
+          action.toUpperCase match {
+            case "LOAD" =>
+              // Don't call `segmentMetadata` to update interval (cost to much).
+              val newInterval = Utils.updateInterval(oldInterval, new Interval(interval), action)
+              dDS.get.intervals = List(newInterval)
+            case "DROP" =>
+              // Call `segmentMetadata` to update interval.
+              val ds = brokerClient.metadata(dataSource, fullIndex)
+              druidClusterInfo.druidDataSources(dataSource) = ds
+            case other => logWarning(s"Unkown segment action '$other'")
+          }
           logInfo(s"The new interval of dataSource $dataSource is ${dDS.get.intervals(0)}")
         } // else do nothing
       }
@@ -157,9 +167,9 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
         druidClusterInfo.druidDataSources(dataSourceName)
       } else {
         val broker: String = druidClusterInfo.curatorConnection.getBroker
-        val brokerClient = new DruidQueryServerClient(broker, false)
-        val druidDS = brokerClient.metadata(dataSourceName,
-          options.loadMetadataFromAllSegments)
+        brokerClient = new DruidQueryServerClient(broker, false)
+        fullIndex = options.loadMetadataFromAllSegments
+        val druidDS = brokerClient.metadata(dataSourceName, fullIndex)
           .copy(druidVersion = druidClusterInfo.serverStatus.version)
         druidClusterInfo.druidDataSources(dataSourceName) = druidDS
         logInfo(s"Druid datasource info for ${dataSourceName} is loaded.")
