@@ -9,6 +9,7 @@ import org.fasterxml.jackson.databind.ObjectMapper._
 import org.joda.time.Interval
 
 import scala.collection.mutable.{Map => MMap}
+import scala.util.Try
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 case class DruidNode(name: String,
@@ -99,13 +100,12 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
    */
   private def updateTimePeriod(json: String): Unit = {
     val root = jsonMapper.readTree(json)
-    val action = root.get("action").asInstanceOf[String]  // "load" or "drop"
-    val dataSource = root.get("dataSource").asInstanceOf[String]
-    val interval = root.get("interval").asInstanceOf[String]
+    val action = Try(root.get("action").asText) recover { case _ => null } get  // "load" or "drop"
+    val dataSource = Try(root.get("dataSource").asText) recover { case _ => null } get
+    val interval = Try(root.get("interval").asText) recover { case _ => null } get
     if (action == null || dataSource == null || interval == null) return
     // Find datasource in `DruidClusterInfo` for each zkHost.
-    logInfo(s"${action.toUpperCase()} a segment of dataSource $dataSource with interval $interval.")
-
+    logInfo(s"${action.toUpperCase} a segment of dataSource $dataSource with interval $interval.")
     cache.foreach {
       case (_, druidClusterInfo) => {
         val dDS: Option[DruidDataSource] = druidClusterInfo.druidDataSources.get(dataSource)
