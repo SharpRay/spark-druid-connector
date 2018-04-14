@@ -91,7 +91,7 @@ trait DruidRelationInfoCache {
 object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRelationInfoCache {
 
   private[metadata] val cache: MMap[String, DruidClusterInfo] = MMap() // zkHost -> DruidClusterInfo
-  private val curatorConnections: MMap[String, CuratorConnection] = MMap()
+  val curatorConnections: MMap[String, CuratorConnection] = MMap()
   private var brokerClient: DruidQueryServerClient = null
   val threadPool = MyThreadUtils.newDaemonCachedThreadPool("druidZkEventExec", 10)
 

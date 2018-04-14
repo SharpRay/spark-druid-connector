@@ -92,7 +92,7 @@ class CuratorConnection(val zkHost: String,
             val serverSeq = getServerSeq(serviceName)
             if (eventType == PathChildrenCacheEvent.Type.CHILD_ADDED) {
               if (serverSeq.contains(host)) {
-                logError(s"New server[$host] but there was already one, ignoreing new one.", host)
+                logError(s"New server[$host] but there was already one, ignoring new one.", host)
               } else {
                 discoveryServers(serviceName) = serverSeq :+ host
                 logDebug(s"New server[$host] is added to cache.")
@@ -152,7 +152,7 @@ class CuratorConnection(val zkHost: String,
             // Get the historical server addr from path child data.
             val key = getServerKey(event)
             if (serverQueueCacheMap.contains(key)) {
-              logError(s"New historical[$key] but there was already one, ignoreing new one.")
+              logError(s"New historical[$key] but there was already one, ignoring new one.")
             } else if (key != null) {
               val queuePath = ZKPaths.makePath(loadQueuePath, key)
               val queueCache = new PathChildrenCache(
