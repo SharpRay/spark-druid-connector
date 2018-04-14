@@ -265,7 +265,7 @@ class CuratorConnection(val zkHost: String,
 
   private def getServiceName(name: String): String = {
     if (options.zkQualifyDiscoveryNames) {
-      s"${options.zkDruidPath}:$name"
+      s"${options.zkDruidPath}:$name".tail
     } else name
   }
 
