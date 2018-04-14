@@ -27,10 +27,10 @@ class CuratorConnection(val zkHost: String,
                         ) extends MyLogging {
 
   // Cache the active historical servers.
-  private val serverQueueCacheMap: MMap[String, PathChildrenCache] = MMap()
+  val serverQueueCacheMap: MMap[String, PathChildrenCache] = MMap()
   private val serverQueueCacheLock = new Object
   // serverName -> serverList
-  private var discoveryServers: MMap[String, Seq[String]] = MMap()
+  var discoveryServers: MMap[String, Seq[String]] = MMap()
   private val discoveryCacheLock = new Object
 
   val announcementsPath = ZKPaths.makePath(options.zkDruidPath, "announcements")
