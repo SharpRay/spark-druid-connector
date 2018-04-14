@@ -93,7 +93,7 @@ class CuratorConnection(val zkHost: String,
             if (eventType == PathChildrenCacheEvent.Type.CHILD_ADDED) {
               logInfo(s"Server[$serviceName][$host] is added in the path ${event.getData.getPath}")
               if (serverSeq.contains(host)) {
-                logError(s"New server[$serviceName][$host] but there was already one, ignoring new one.", host)
+                logWarning(s"New server[$serviceName][$host] but there was already one, ignoring new one.", host)
               } else {
                 discoveryServers(serviceName) = serverSeq :+ host
                 logDebug(s"New server[$host] is added to cache.")
@@ -153,8 +153,9 @@ class CuratorConnection(val zkHost: String,
           serverQueueCacheLock.synchronized {
             // Get the historical server addr from path child data.
             val key = getServerKey(event)
+            logInfo(s"Historical server[$key] is added to the path ${event.getData.getPath}")
             if (serverQueueCacheMap.contains(key)) {
-              logError(s"New historical[$key] but there was already one, ignoring new one.")
+              logWarning(s"New historical[$key] but there was already one, ignoring new one.")
             } else if (key != null) {
               val queuePath = ZKPaths.makePath(loadQueuePath, key)
               val queueCache = new PathChildrenCache(
@@ -177,6 +178,7 @@ class CuratorConnection(val zkHost: String,
           // A historical server is offline.
           serverQueueCacheLock.synchronized {
             val key = getServerKey(event)
+            logInfo(s"Historical server[$key] is removed from the path ${event.getData.getPath}")
             val segmentsCache: Option[PathChildrenCache] = serverQueueCacheMap.remove(key)
             if (segmentsCache.isDefined) {
               logInfo(s"Closing inventory for $key. Also removing listeners.")
