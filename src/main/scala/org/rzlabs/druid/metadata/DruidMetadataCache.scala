@@ -5,6 +5,8 @@ import org.apache.spark.util.MyThreadUtils
 import org.codehaus.jackson.annotate.JsonIgnoreProperties
 import org.rzlabs.druid._
 import org.rzlabs.druid.client._
+import org.fasterxml.jackson.databind.ObjectMapper._
+import org.joda.time.Interval
 
 import scala.collection.mutable.{Map => MMap}
 
@@ -91,9 +93,34 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
   private val curatorConnections: MMap[String, CuratorConnection] = MMap()
   val threadPool = MyThreadUtils.newDaemonCachedThreadPool("druidZkEventExec", 10)
 
+  /**
+   *
+   * @param json
+   */
+  private def updateTimePeriod(json: String): Unit = {
+    val root = jsonMapper.readTree(json)
+    val action = root.get("action").toString  // "load" or "drop"
+    val dataSource = root.get("dataSource").toString
+    val interval = root.get("interval").toString
+    if (action == null || dataSource == null || interval == null) return
+    // Find datasource in `DruidClusterInfo` for each zkHost.
+    logInfo(s"${action.toUpperCase()} a segment of dataSource $dataSource with interval $interval.")
+    cache.foreach {
+      case (_, druidClusterInfo) => {
+        val dDS: Option[DruidDataSource] = druidClusterInfo.druidDataSources.get(dataSource)
+        if (dDS.isDefined) {  // find the dataSource the interval should be updated.
+          val oldInterval: Interval = dDS.get.intervals(0)
+          // Don't call `segmentMetadata` to update interval (cost to much).
+          val newInterval = Utils.updateInterval(oldInterval, new Interval(interval))
+          dDS.get.intervals = List(newInterval)
+        } // else do nothing
+      }
+    }
+  }
+
   private def curatorConnection(host: String, options: DruidOptions): CuratorConnection = {
     curatorConnections.getOrElse(host, {
-      val cc = new CuratorConnection(host, options, cache, threadPool, (data: Array[Byte]) => ())
+      val cc = new CuratorConnection(host, options, cache, threadPool, updateTimePeriod _)
       curatorConnections(host) = cc
       cc
     })
@@ -111,6 +138,7 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
         val serverStatus = coordClient.serverStatus
         val druidClusterInfo = new DruidClusterInfo(zkHost, cc, serverStatus,
           MMap[String, DruidDataSource]())
+        cache(druidClusterInfo.host) = druidClusterInfo
         logInfo(s"Loading druid cluster info for $druidRelationName with zkHost $zkHost")
         druidClusterInfo
       }

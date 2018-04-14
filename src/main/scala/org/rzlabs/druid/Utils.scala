@@ -23,4 +23,10 @@ object Utils extends MyLogging {
       case (t, in) => t + (in.getEndMillis - in.getStartMillis)
     }
   }
+
+  def updateInterval(interval: Interval, `with`: Interval) = {
+    interval
+      .withStartMillis(Math.min(interval.getStartMillis, `with`.getStartMillis))
+      .withEndMillis(Math.max(interval.getEndMillis, `with`.getEndMillis))
+  }
 }

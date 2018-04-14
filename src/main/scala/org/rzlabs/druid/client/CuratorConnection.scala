@@ -23,12 +23,12 @@ class CuratorConnection(val zkHost: String,
                         val options: DruidOptions,
                         val cache: MMap[String, DruidClusterInfo],
                         execSvc: ExecutorService,
-                        updateTimeBoundary: Array[Byte] => Unit
+                        updateTimeBoundary: String => Unit
                         ) extends MyLogging {
 
   // Cache the active historical servers.
-  private val serverSegmentsCacheMap: MMap[String, PathChildrenCache] = MMap()
-  private val serverSegmentsCacheLock = new Object
+  private val serverQueueCacheMap: MMap[String, PathChildrenCache] = MMap()
+  private val serverQueueCacheLock = new Object
   // serverName -> serverList
   private var discoveryServers: MMap[String, Seq[String]] = MMap()
   private val discoveryCacheLock = new Object
@@ -36,6 +36,7 @@ class CuratorConnection(val zkHost: String,
   val announcementsPath = ZKPaths.makePath(options.zkDruidPath, "announcements")
   val serverSegmentsPath = ZKPaths.makePath(options.zkDruidPath, "segments")
   val discoveryPath = ZKPaths.makePath(options.zkDruidPath, "discovery")
+  val loadQueuePath = ZKPaths.makePath(options.zkDruidPath, "loadQueue")
   val brokersPath = ZKPaths.makePath(discoveryPath, getServiceName("broker"))
   val coordinatorsPath = ZKPaths.makePath(discoveryPath, getServiceName("coordinator"))
 
@@ -113,22 +114,24 @@ class CuratorConnection(val zkHost: String,
    * A [[PathChildrenCacheListener]] which is used to monitor segments' in and out and
    * update time boundary for datasources.
    * The occurrence of a CHILD_ADDED event means there's a new segment of some datasource
-   * is announced, and we should update the datasource's time boundary.
-   * The occurrence of a CHILD_REMOVED event means there's a segment of some
-   * datasource is removed, and we should update the datasource's time boundary.
+   * is added to the `loadQueue`, we should do nothing because the segment may be queued
+   * and it is not announced at that time.
+   * The occurrence of a CHILD_REMOVED event means there's a segment is removed from `loadQueue`
+   * and it will be announced then, we should update the datasource's time boundary.
    */
-  val segmentsListener = new PathChildrenCacheListener {
+  val segmentLoadQueueListener = new PathChildrenCacheListener {
     override def childEvent(client: CuratorFramework, event: PathChildrenCacheEvent): Unit = {
       event.getType match {
-        case eventType @ (PathChildrenCacheEvent.Type.CHILD_ADDED |
-             PathChildrenCacheEvent.Type.CHILD_REMOVED) =>
-          logDebug(s"event ${event.getType} occurred.")
-          val nodeData = getZkDataForNode(event.getData.getPath)
+        case eventType @ PathChildrenCacheEvent.Type.CHILD_REMOVED =>
+          logDebug(s"event $eventType occurred.")
+          // This will throw a KeeperException because the removed path is not existence.
+          //val nodeData = getZkDataForNode(event.getData.getPath)
+          val nodeData: Array[Byte] = event.getData.getData
           if (nodeData == null) {
             logWarning("Ignoring event: Type - %s, Path - %s, Version - %s",
               Array(event.getType, event.getData.getPath, event.getData.getStat.getVersion))
           } else {
-            updateTimeBoundary(nodeData)
+            updateTimeBoundary(new String(nodeData))
           }
         case _ => ()
       }
@@ -144,34 +147,34 @@ class CuratorConnection(val zkHost: String,
       event.getType match {
         case PathChildrenCacheEvent.Type.CHILD_ADDED =>
           // New historical server is added to the Druid cluster.
-          serverSegmentsCacheLock.synchronized {
+          serverQueueCacheLock.synchronized {
             // Get the historical server addr from path child data.
             val key = getServerKey(event)
-            if (serverSegmentsCacheMap.contains(key)) {
+            if (serverQueueCacheMap.contains(key)) {
               logError("New historical[%s] but there was already one, ignoreing new one.", key)
             } else if (key != null) {
-              val segmentsPath = ZKPaths.makePath(serverSegmentsPath, key)
-              val segmentsCache = new PathChildrenCache(
+              val queuePath = ZKPaths.makePath(loadQueuePath, key)
+              val queueCache = new PathChildrenCache(
                 framework,
-                segmentsPath,
+                queuePath,
                 true,
                 true,
                 execSvc
               )
-              segmentsCache.getListenable.addListener(segmentsListener)
-              serverSegmentsCacheMap(key) = segmentsCache
-              logDebug("Starting inventory cache for %s, inventoryPath %s", Array(key, segmentsPath))
+              queueCache.getListenable.addListener(segmentLoadQueueListener)
+              serverQueueCacheMap(key) = queueCache
+              logDebug("Starting inventory cache for %s, inventoryPath %s", Array(key, queuePath))
               // Start cache and trigger the CHILD_ADDED event.
               //segmentsCache.start(StartMode.POST_INITIALIZED_EVENT)
               // Start cache and do not trigger the CHILD_ADDED by default.
-              segmentsCache.start(StartMode.BUILD_INITIAL_CACHE)
+              queueCache.start(StartMode.BUILD_INITIAL_CACHE)
             }
           }
         case PathChildrenCacheEvent.Type.CHILD_REMOVED =>
           // A historical server is offline.
-          serverSegmentsCacheLock.synchronized {
+          serverQueueCacheLock.synchronized {
             val key = getServerKey(event)
-            val segmentsCache: Option[PathChildrenCache] = serverSegmentsCacheMap.remove(key)
+            val segmentsCache: Option[PathChildrenCache] = serverQueueCacheMap.remove(key)
             if (segmentsCache.isDefined) {
               logInfo("Closing inventory ache for %s. Also removin listeners.", key)
               segmentsCache.get.getListenable.clear()
@@ -188,8 +191,9 @@ class CuratorConnection(val zkHost: String,
   coordinatorsCache.getListenable.addListener(discoveryListener)
 
   framework.start()
-  announcementsCache.start(StartMode.BUILD_INITIAL_CACHE)
+  announcementsCache.start(StartMode.POST_INITIALIZED_EVENT)
   brokersCache.start(StartMode.POST_INITIALIZED_EVENT)
+  coordinatorsCache.start(StartMode.POST_INITIALIZED_EVENT)
 
 //  def getService(name: String): String = {
 //    getServices(name).head

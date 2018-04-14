@@ -86,7 +86,7 @@ trait DruidDataSourceCapability {
 }
 
 case class DruidDataSource(name: String,
-                           intervals: List[Interval],
+                           var intervals: List[Interval],
                            columns: Map[String, DruidColumn],
                            size: Long,
                            numRows: Long,
