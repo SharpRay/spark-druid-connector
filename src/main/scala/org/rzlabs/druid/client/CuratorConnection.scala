@@ -30,7 +30,7 @@ class CuratorConnection(val zkHost: String,
   val serverQueueCacheMap: MMap[String, PathChildrenCache] = MMap()
   private val serverQueueCacheLock = new Object
   // serverName -> serverList
-  var discoveryServers: MMap[String, Seq[String]] = MMap()
+  val discoveryServers: MMap[String, Seq[String]] = MMap()
   private val discoveryCacheLock = new Object
 
   val announcementsPath = ZKPaths.makePath(options.zkDruidPath, "announcements")
@@ -241,10 +241,10 @@ class CuratorConnection(val zkHost: String,
       }
     } catch {
       case e: Exception =>
-        throw new DruidDataSourceException(s"Failed to get '$name' for '$zkHost'", e)
+        throw new DruidDataSourceException(s"Failed to get '$name' for zkHost '$zkHost'", e)
     }
     if (services.isEmpty) {
-      throw new DruidDataSourceException(s"There's no '$name' for 'zkHost' in path '$servicePath'")
+      throw new DruidDataSourceException(s"There's no '$name' for zkHost '$zkHost' in path '$servicePath'")
     }
     services
   }
