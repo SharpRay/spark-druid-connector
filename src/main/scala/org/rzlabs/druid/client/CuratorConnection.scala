@@ -91,6 +91,7 @@ class CuratorConnection(val zkHost: String,
             val serviceName = druidNode.name
             val serverSeq = getServerSeq(serviceName)
             if (eventType == PathChildrenCacheEvent.Type.CHILD_ADDED) {
+              logInfo(s"Server[$host] is added in the path ${event.getData.getPath}")
               if (serverSeq.contains(host)) {
                 logError(s"New server[$host] but there was already one, ignoring new one.", host)
               } else {
@@ -98,6 +99,7 @@ class CuratorConnection(val zkHost: String,
                 logDebug(s"New server[$host] is added to cache.")
               }
             } else {
+              logInfo(s"Server[$host] is removed from the path ${event.getData.getPath}")
               if (serverSeq.contains(host)) {
                 discoveryServers(serviceName) = serverSeq.filterNot(_ == host)
                 logDebug(s"Server[$host] is offline, so remove it from the cache.")
