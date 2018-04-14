@@ -99,7 +99,7 @@ class CuratorConnection(val zkHost: String,
                 logDebug(s"New server[$host] is added to cache.")
               }
             } else {
-              logInfo(s"Server[$host] is removed from the path ${event.getData.getPath}")
+              logInfo(s"Server[$serviceName][$host] is removed from the path ${event.getData.getPath}")
               if (serverSeq.contains(host)) {
                 discoveryServers(serviceName) = serverSeq.filterNot(_ == host)
                 logDebug(s"Server[$host] is offline, so remove it from the cache.")
