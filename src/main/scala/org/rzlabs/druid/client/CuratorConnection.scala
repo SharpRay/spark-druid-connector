@@ -84,24 +84,25 @@ class CuratorConnection(val zkHost: String,
         case eventType @ (PathChildrenCacheEvent.Type.CHILD_ADDED |
              PathChildrenCacheEvent.Type.CHILD_REMOVED) =>
           discoveryCacheLock.synchronized {
-            val data = getZkDataForNode(event.getData.getPath)
+            //val data = getZkDataForNode(event.getData.getPath)
+            val data = event.getData.getData
             val druidNode = jsonMapper.readValue(new String(data), classOf[DruidNode])
             val host = s"${druidNode.address}:${druidNode.port}"
             val serviceName = druidNode.name
             val serverSeq = getServerSeq(serviceName)
             if (eventType == PathChildrenCacheEvent.Type.CHILD_ADDED) {
               if (serverSeq.contains(host)) {
-                logError("New server[%s] but there was already one, ignoreing new one.", host)
+                logError(s"New server[$host] but there was already one, ignoreing new one.", host)
               } else {
                 discoveryServers(serviceName) = serverSeq :+ host
-                logDebug("New serverr[%s] is added to cache.", host)
+                logDebug(s"New server[$host] is added to cache.")
               }
             } else {
               if (serverSeq.contains(host)) {
                 discoveryServers(serviceName) = serverSeq.filterNot(_ == host)
-                logDebug("Server[%] is offline, so remove it from the cache.", host)
+                logDebug(s"Server[$host] is offline, so remove it from the cache.")
               } else {
-                logError("Server[%s] is not in the cache, how to remove it from cache?", host)
+                logError(s"Server[$host] is not in the cache, how to remove it from cache?")
               }
             }
           }
@@ -128,8 +129,8 @@ class CuratorConnection(val zkHost: String,
           //val nodeData = getZkDataForNode(event.getData.getPath)
           val nodeData: Array[Byte] = event.getData.getData
           if (nodeData == null) {
-            logWarning("Ignoring event: Type - %s, Path - %s, Version - %s",
-              Array(event.getType, event.getData.getPath, event.getData.getStat.getVersion))
+            logWarning(s"Ignoring event: Type - ${event.getType}, " +
+              s"Path - ${event.getData.getPath}, Version - ${event.getData.getStat.getVersion}")
           } else {
             updateTimeBoundary(new String(nodeData))
           }
@@ -151,7 +152,7 @@ class CuratorConnection(val zkHost: String,
             // Get the historical server addr from path child data.
             val key = getServerKey(event)
             if (serverQueueCacheMap.contains(key)) {
-              logError("New historical[%s] but there was already one, ignoreing new one.", key)
+              logError(s"New historical[$key] but there was already one, ignoreing new one.")
             } else if (key != null) {
               val queuePath = ZKPaths.makePath(loadQueuePath, key)
               val queueCache = new PathChildrenCache(
@@ -163,7 +164,7 @@ class CuratorConnection(val zkHost: String,
               )
               queueCache.getListenable.addListener(segmentLoadQueueListener)
               serverQueueCacheMap(key) = queueCache
-              logDebug("Starting inventory cache for %s, inventoryPath %s", Array(key, queuePath))
+              logDebug(s"Starting inventory cache for $key, inventoryPath $queuePath", Array(key, queuePath))
               // Start cache and trigger the CHILD_ADDED event.
               //segmentsCache.start(StartMode.POST_INITIALIZED_EVENT)
               // Start cache and do not trigger the CHILD_ADDED by default.
@@ -176,10 +177,10 @@ class CuratorConnection(val zkHost: String,
             val key = getServerKey(event)
             val segmentsCache: Option[PathChildrenCache] = serverQueueCacheMap.remove(key)
             if (segmentsCache.isDefined) {
-              logInfo("Closing inventory ache for %s. Also removin listeners.", key)
+              logInfo(s"Closing inventory for $key. Also removing listeners.")
               segmentsCache.get.getListenable.clear()
               segmentsCache.get.close()
-            } else logWarning("Cache[%s] removed that wasn't cache!?", key)
+            } else logWarning(s"Cache[$key] removed that wasn't cache!?")
           }
         case _ => ()
       }
@@ -268,10 +269,11 @@ class CuratorConnection(val zkHost: String,
 
   private def getServerKey(event: PathChildrenCacheEvent): String = {
     val child: ChildData = event.getData
-    val data: Array[Byte] = getZkDataForNode(child.getPath)
+    //val data: Array[Byte] = getZkDataForNode(child.getPath)
+    val data: Array[Byte] = child.getData
     if (data == null) {
-      logWarning("Ignoring event: Type - %s, Path - %s, Version - %s",
-        Array(event.getType, child.getPath, child.getStat.getVersion))
+      logWarning(s"Ignoring event: Type - ${event.getType}, " +
+        s"Path - ${child.getPath}, Version - ${child.getStat.getVersion}")
       null
     } else {
       ZKPaths.getNodeFromPath(child.getPath)
