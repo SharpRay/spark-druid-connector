@@ -99,9 +99,9 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
    */
   private def updateTimePeriod(json: String): Unit = {
     val root = jsonMapper.readTree(json)
-    val action = root.get("action").toString  // "load" or "drop"
-    val dataSource = root.get("dataSource").toString
-    val interval = root.get("interval").toString
+    val action = root.get("action").asInstanceOf[String]  // "load" or "drop"
+    val dataSource = root.get("dataSource").asInstanceOf[String]
+    val interval = root.get("interval").asInstanceOf[String]
     if (action == null || dataSource == null || interval == null) return
     // Find datasource in `DruidClusterInfo` for each zkHost.
     logInfo(s"${action.toUpperCase()} a segment of dataSource $dataSource with interval $interval.")
@@ -114,6 +114,7 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
           // Don't call `segmentMetadata` to update interval (cost to much).
           val newInterval = Utils.updateInterval(oldInterval, new Interval(interval))
           dDS.get.intervals = List(newInterval)
+          logInfo(s"The new interval of dataSource $dataSource is ${dDS.get.intervals(0)}")
         } // else do nothing
       }
     }
