@@ -11,6 +11,7 @@ case class DruidOptions(zkHost: String,
                         poolMaxConnectionsPerRoute: Int,
                         poolMaxConnections: Int,
                         loadMetadataFromAllSegments: Boolean,
+                        debugTransformations: Boolean,
                         queryGranularity: DruidQueryGranularity)
 
 case class DruidRelationName(zkHost: String, druidDataSource: String)

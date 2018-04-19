@@ -15,6 +15,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager
 import org.apache.http.util.EntityUtils
 import org.fasterxml.jackson.databind.ObjectMapper._
 import org.joda.time.{DateTime, Interval}
+import org.rzlabs.druid.metadata.DruidOptions
 import org.rzlabs.druid.{DruidDataSource, DruidDataSourceException, DruidQueryGranularity}
 
 import scala.util.Try
@@ -28,6 +29,22 @@ object ConnectionManager {
     p.setMaxTotal(40)
     p.setDefaultMaxPerRoute(8)
     p
+  }
+
+  def init(druidOptions: DruidOptions): Unit = {
+    if (!initialized) {
+      init(druidOptions.poolMaxConnectionsPerRoute,
+        druidOptions.poolMaxConnections)
+      initialized = true
+    }
+  }
+
+  def init(maxPerRoute: Int, maxTotal: Int): Unit = {
+    if (!initialized) {
+      pool.setMaxTotal(maxTotal)
+      pool.setDefaultMaxPerRoute(maxPerRoute)
+      initialized = true
+    }
   }
 }
 

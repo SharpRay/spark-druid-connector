@@ -931,7 +931,11 @@ case class CascadeExtractionFunctionSpec(`type`: String,
                                          extractionFns: List[ExtractionFunctionSpec]
                                         ) extends ExtractionFunctionSpec {
 
-  this() = this("cascade")
+  def this(extractionFns: List[ExtractionFunctionSpec]) = {
+    this("cascade", extractionFns)
+  }
+
+  def this() = this(null)
 }
 
 /**
@@ -1333,7 +1337,7 @@ case class FilteredAggregationSpec(`type`: String,
                                    filter: FilterSpec,
                                    aggregator: AggregationSpec
                                   ) extends AggregationSpec {
-  this(filter: FilterSpec, aggregator: AggregationSpec) = {
+  def this(filter: FilterSpec, aggregator: AggregationSpec) = {
     this("filtered", filter, aggregator)
   }
 }
