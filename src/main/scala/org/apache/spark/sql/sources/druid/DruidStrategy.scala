@@ -8,6 +8,7 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
   with MyLogging {
 
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = {
+    println("hahahahahahaha effective!!!!!!!")
     Nil
   }
 }

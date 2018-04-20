@@ -7,6 +7,8 @@ import org.apache.spark.sql.sources.{BaseRelation, RelationProvider}
 import org.fasterxml.jackson.databind.ObjectMapper._
 import org.rzlabs.druid.metadata.{DruidMetadataCache, DruidOptions, DruidRelationColumnInfo, DruidRelationInfo}
 
+import org.apache.spark.sql._
+
 class DefaultSource extends RelationProvider with MyLogging {
 
   import DefaultSource._
