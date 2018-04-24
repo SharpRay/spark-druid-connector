@@ -798,36 +798,36 @@ case class StrlenExtractionFunctionSpec(`type`: String
  */
 case class TimeFormatExtractionFunctionSpec(`type`: String,
                                             format: String,
-                                            timeZone: DateTimeZone,
+                                            timeZone: String,
                                             locale: Locale,
                                             granularity: GranularitySpec,
                                             asMillis: Boolean
                                            ) extends ExtractionFunctionSpec {
 
-  def this(format: String, timeZone: DateTimeZone, locale: Locale,
+  def this(format: String, timeZone: String, locale: Locale,
            granularity: GranularitySpec, asMillis: Boolean) = {
     this("timeFormat", format, timeZone, locale, granularity, asMillis)
   }
 
-  def this(format: String, timeZone: DateTimeZone, locale: Locale,
+  def this(format: String, timeZone: String, locale: Locale,
            granularity: GranularitySpec) = {
     this(format, timeZone, locale, granularity, false)
   }
 
-  def this(format: String, timeZone: DateTimeZone, locale: Locale) = {
-    this(format, timeZone, locale, new NoneGranularitySpec, false)
+  def this(format: String, timeZone: String, locale: Locale) = {
+    this(format, timeZone, locale, new NoneGranularitySpec)
   }
 
-  def this(format: String, timeZone: DateTimeZone) = {
-    this(format, timeZone, Locale.getDefault, new NoneGranularitySpec, false)
+  def this(format: String, timeZone: String) = {
+    this(format, timeZone, Locale.getDefault)
   }
 
   def this(format: String) = {
-    this(format, DateTimeZone.UTC, Locale.getDefault, new NoneGranularitySpec, false)
+    this(format, DateTimeZone.UTC.getID)
   }
 
   def this() = {
-    this(null, DateTimeZone.UTC, Locale.getDefault, new NoneGranularitySpec, false)
+    this(null)
   }
 }
 
@@ -843,7 +843,11 @@ case class TimeFormatExtractionFunctionSpec(`type`: String,
 case class TimeParsingExtractionFunctionSpec(`type`: String,
                                          timeFormat: String,
                                          resultFormat: String
-                                        ) extends ExtractionFunctionSpec
+                                        ) extends ExtractionFunctionSpec {
+  def this(timeFormat: String, resultFormat: String) {
+    this("time", timeFormat, resultFormat)
+  }
+}
 
 /**
  * Returns the dimension value, as transformed by the given javascript function.

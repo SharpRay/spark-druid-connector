@@ -12,6 +12,7 @@ case class DruidOptions(zkHost: String,
                         poolMaxConnections: Int,
                         loadMetadataFromAllSegments: Boolean,
                         debugTransformations: Boolean,
+                        timeZoneId: String,
                         queryGranularity: DruidQueryGranularity)
 
 case class DruidRelationName(zkHost: String, druidDataSource: String)

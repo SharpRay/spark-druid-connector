@@ -50,14 +50,21 @@ trait DruidRelationInfoCache {
       } else None
     }
 
-    columns.map {
-      case (columnName, druidColumn) =>
+    def isApproxMetric(druidColumn: DruidColumn) = {
+      druidColumn.dataType == DruidDataType.HyperUnique ||
+        druidColumn.dataType == DruidDataType.ThetaSketch
+    }
+
+    val normalColumns = columns.map {
+      case (columnName, druidColumn) if !isApproxMetric(druidColumn) =>
         val ci = userSpecifiedColumnInfos.find(_.column == columnName).getOrElse(null)
         val druidRelationColumn = if (ci != null) {
           val hllMetric = getDruidMetric(ci.hllMetric)
           val sketchMetric = getDruidMetric(ci.sketchMetric)
-          DruidRelationColumn(columnName, druidColumn, hllMetric, sketchMetric)
-        } else DruidRelationColumn(columnName, druidColumn)
+          DruidRelationColumn(columnName, Some(druidColumn), hllMetric, sketchMetric)
+        } else {
+          DruidRelationColumn(columnName, Some(druidColumn))
+        }
         val cardinality: Option[Long] = if (druidColumn.isInstanceOf[DruidTimeDimension]) {
           Some(druidColumn.asInstanceOf[DruidTimeDimension].cardinality)
         } else if (druidColumn.isInstanceOf[DruidDimension]) {
@@ -66,7 +73,28 @@ trait DruidRelationInfoCache {
           Some(druidColumn.asInstanceOf[DruidMetric].cardinality)
         } else None
         columnName -> druidRelationColumn.copy(cardinalityEstimate = cardinality)
+      // Approx metric information should be carried by related origin column.
+      case _ => null -> null
+    }.filterNot(_._1 == null)
+
+    // For the dimension user specified but not indexed in Druid datasource.
+    val notIndexedColumns = userSpecifiedColumnInfos.collect {
+      case ci if !columns.exists(_ == ci.column) => ci
+    }.map {
+      case ci: DruidRelationColumnInfo =>
+        val hllMetric = getDruidMetric(ci.hllMetric)
+        val sketchMetric = getDruidMetric(ci.sketchMetric)
+        val cardinality = columns.find { _._1 ==
+          hllMetric.getOrElse(sketchMetric.getOrElse(null))
+        } match {
+          case Some((_, druidColumn)) =>
+            Some(druidColumn.asInstanceOf[DruidMetric].cardinality)
+          case _ => None
+        }
+        DruidRelationColumn(ci.column, None, hllMetric, sketchMetric, cardinality)
     }
+
+    normalColumns ++ notIndexedColumns
   }
 
   def druidRelation(dataSourceName: String,

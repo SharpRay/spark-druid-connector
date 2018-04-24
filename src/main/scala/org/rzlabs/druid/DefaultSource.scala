@@ -59,6 +59,8 @@ class DefaultSource extends RelationProvider with MyLogging {
     val debugTransformations: Boolean = parameters.getOrElse(DEBUG_TRANSFORMATIONS,
       DEFAULT_DEBUG_TRANSFORMATIONS).toBoolean
 
+    val timeZoneId: String = parameters.getOrElse(TIME_ZONE_ID, DEFAULT_TIME_ZONE_ID)
+
     val queryGranularity = DruidQueryGranularity(
       parameters.getOrElse(QUERY_GRANULARITY, DEFAULT_QUERY_GRANULARITY))
 
@@ -72,6 +74,7 @@ class DefaultSource extends RelationProvider with MyLogging {
       poolMaxConnections,
       loadMetadataFromAllSegments,
       debugTransformations,
+      timeZoneId,
       queryGranularity
     )
 
@@ -89,8 +92,8 @@ class DefaultSource extends RelationProvider with MyLogging {
   }
 
   /**
-   * There are 3 places to create a [[BaseRelation]] by calling
-   * the `resolveRelation` methid of [[org.apache.spark.sql.execution.datasources.DataSource]]:
+   * There are 3 places to initialize a [[BaseRelation]] object by calling
+   * the `resolveRelation` method of [[org.apache.spark.sql.execution.datasources.DataSource]]:
    *
    *   1. In the `run(sparkSession: SparkSession)` method in
    *      [[org.apache.spark.sql.execution.command.CreateDataSourceTableCommand]]
@@ -99,11 +102,13 @@ class DefaultSource extends RelationProvider with MyLogging {
    *      when calling "spark.read.format(org.rzlabs.druid).load()";
    *   3. In the `load` method of the LoadingCache object "cachedDataSourceTables" in
    *      [[org.apache.spark.sql.hive.HiveMetastoreCatalog]] which called from the root
-   *      method of `apply` in [[ResolveRelations]] in
-   *      [[org.apache.spark.sql.catalyst.analysis.Analyzer]] which belongs to "resolution"
-   *      batch in the logical plan analyzing phase of the executing sql "select ...".
+   *      method of `apply` in [[org.apache.spark.sql.catalyst.analysis.Analyzer.ResolveRelations]]
+   *      which belongs to "resolution" rule batch in the logical plan analyzing phase of the
+   *      execution of "select ...".
    *
-   * So we can add druid-related physical rules in the `resolveRelation` method in [[DefaultSource]].
+   * None of the 3 cases generates [[org.apache.spark.sql.execution.SparkPlan]] in DataFrame's
+   * `queryExecution` of [[org.apache.spark.sql.execution.QueryExecution]], so we can
+   * add druid-related physical rules in the `resolveRelation` method in [[DefaultSource]].
    *
    * @param sqlContext
    * @param druidOptions
@@ -184,5 +189,8 @@ object DefaultSource {
 
   val DEBUG_TRANSFORMATIONS = "debugTransformations"
   val DEFAULT_DEBUG_TRANSFORMATIONS = "false"
+
+  val TIME_ZONE_ID = "timeZoneId"
+  val DEFAULT_TIME_ZONE_ID= "UTC"
 
 }

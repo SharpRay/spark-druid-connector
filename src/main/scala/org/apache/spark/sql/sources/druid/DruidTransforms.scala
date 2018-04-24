@@ -5,7 +5,7 @@ import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.rzlabs.druid.DruidQueryBuilder
 
 class DruidTransforms extends MyLogging {
-  druidPlanner: DruidPlanner => // DruidTransforms can only be inherited by DruidPlanner
+  self: DruidPlanner => // DruidTransforms can only be inherited by DruidPlanner
 
   type DruidTransform = Function[(Seq[DruidQueryBuilder], LogicalPlan), Seq[DruidQueryBuilder]]
 
@@ -29,7 +29,7 @@ class DruidTransforms extends MyLogging {
       val dqb = p._1
       val lp = p._2
       val rdqb = t(dqb, lp)
-      if (druidPlanner.druidOptions.debugTransformations) {
+      if (self.druidOptions.debugTransformations) {
         logInfo(s"$transformName transform invoked:\n" +
           s"Input DruidQueryBuilders: $dqb\n" +
           s"Input LogicalPlan: $lp\n" +
@@ -53,4 +53,10 @@ class DruidTransforms extends MyLogging {
    * @return The converted TransformHoder object.
    */
   implicit def transformToHolder(t: DruidTransform) = TransfomHolder(t)
+
+  def debugTransform(msg: => String): Unit = {
+    if (self.druidOptions.debugTransformations) {
+      logInfo(msg)
+    }
+  }
 }

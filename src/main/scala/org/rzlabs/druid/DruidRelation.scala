@@ -4,7 +4,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
-import org.apache.spark.sql.types.{StructField, StructType}
+import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.rzlabs.druid.metadata.{DruidRelationColumn, DruidRelationInfo}
 
 import scala.collection.mutable.ArrayBuffer
@@ -21,15 +21,22 @@ case class DruidRelation(val info: DruidRelationInfo)(
     val metricFields: ArrayBuffer[StructField] = ArrayBuffer()
     info.druidColumns.map {
       case (columnName: String, relationColumn: DruidRelationColumn) =>
-        val sparkType = DruidDataType.sparkDataType(relationColumn.druidColumn.dataType)
+        val (sparkType, isDimension) = relationColumn.druidColumn match {
+          case Some(dc) =>
+            (DruidDataType.sparkDataType(dc.dataType), dc.isDimension())
+          case None => // Some hll metric's orgin column
+            if (relationColumn.hllMetric.isEmpty &&
+              relationColumn.sketchMetric.isEmpty) {
+              throw new DruidDataSourceException(s"Illegal column $relationColumn")
+            }
+            (StringType, true)
+        }
         if (columnName == DruidDataSource.INNER_TIME_COLUMN_NAME) {
           timeField += StructField(info.timeDimensionCol, sparkType)
-        } else if (relationColumn.druidColumn.isDimension()) {
+        } else if (isDimension) {
           dimensionFields += StructField(columnName, sparkType)
-        } else if (!relationColumn.druidColumn.isDimension()) {
-          metricFields += StructField(columnName, sparkType)
         } else {
-          throw new DruidDataSourceException("Impossible to get here!")
+          metricFields += StructField(columnName, sparkType)
         }
     }
     StructType(timeField ++ dimensionFields ++ metricFields)

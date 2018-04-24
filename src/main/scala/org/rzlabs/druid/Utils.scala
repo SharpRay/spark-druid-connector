@@ -29,4 +29,8 @@ object Utils extends MyLogging {
       .withStartMillis(Math.min(interval.getStartMillis, `with`.getStartMillis))
       .withEndMillis(Math.max(interval.getEndMillis, `with`.getEndMillis))
   }
+
+  def filterSomes[A](a: List[Option[A]]): List[Option[A]] = {
+    a.filter { case Some(x) => true; case None => false }
+  }
 }
