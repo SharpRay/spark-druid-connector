@@ -1,10 +1,12 @@
 package org.rzlabs.druid.jscodegen
 
 import org.apache.spark.sql.MyLogging
-import org.apache.spark.sql.catalyst.expressions.Expression
+import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.types._
 import org.rzlabs.druid.DruidQueryBuilder
 import org.rzlabs.druid._
+import JSDateTimeCtx._
+import org.apache.spark.sql.util.ExprUtil._
 
 /**
  * Generate Javascript code used in [[JavascriptAggregationSpec]], [[JavascriptExtractionFunctionSpec]],
@@ -21,6 +23,7 @@ import org.rzlabs.druid._
 case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputParamsAllowed: Boolean,
                            metricAllowed: Boolean, timeZone: String, retType: DataType = StringType
                           ) extends MyLogging {
+
 
   private[this] var vid: Int = 0
 
@@ -46,6 +49,171 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
     if (oe.isInstanceOf[Expression]) {
       val e: Expression = oe.asInstanceOf[Expression]
       e match {
+        case AttributeReference(nm, dataType, _, _) =>
+          for (dc <- dqb.druidColumn(nm)
+               if ((dc.isTimeDimension ||
+                 (dc.isMetric && metricAllowed) ||
+                 dc.isDimension()) && validInParams(dc.name))
+          ) yield {
+            if (dc.isTimeDimension) {
+              Some(new JSExpr(dc.name, LongType, true))
+            } else if (DruidDataType.sparkDataType(dc.dataType) == dataType) {
+              // This is always true because all columns is in Druid.
+              Some(new JSExpr(dc.name, dataType, false))
+            } else {
+              // This seems not happen ???
+              val je = new JSExpr(dc.name, DruidDataType.sparkDataType(dc.dataType), false)
+              val cje = JSCast(je, dataType, this).castCode
+              cje.map { je => JSExpr(je.fnVar, je.linesSoFar, je.getRef, dataType) }
+            }
+          }.get // Option[Option].get = Option. This because calling castCode may returns None.
+        case Literal(null, dataType) => Some(new JSExpr("null", dataType, false))
+        case Literal(v, dataType) =>
+          dataType match {
+            case ShortType | IntegerType | LongType | FloatType | DoubleType =>
+              Some(new JSExpr(v.toString, dataType, false))
+            case StringType =>
+              Some(new JSExpr(s""""v.toString"""", dataType, false))
+            case NullType => Some(new JSExpr("null", dataType, false))
+            case DateType if v.isInstanceOf[Int] =>
+              // days number
+              Some(new JSExpr(noDaysToDateCode(v.toString), DateType, false))
+            case TimestampType if v.isInstanceOf[Long] =>
+              // micro seconds
+              Some(new JSExpr(longToISODtCode((v.asInstanceOf[Long] / 1000).toString, dateTimeCtx),
+                TimestampType, false))
+            case _ => JSCast(new JSExpr(v.toString, StringType, false), dataType, this).castCode
+          }
+
+        case Cast(child, dt) => genCastExprCode(child, dt)
+
+        case Concat(exprs) =>
+          exprs.tail.foldLeft(genExprCode(exprs.head)) {
+            (loje, expr) =>
+              for (lje <- loje;
+                   je <- genExprCode(expr)) yield {
+              JSExpr(None, s"${lje.linesSoFar} + ${je.linesSoFar}",
+                s"${lje.getRef}.concat(${je.getRef})", StringType)
+            }
+          }
+
+        case Upper(u) =>
+          // TODO: use UpperAndLowerExtractionFunctionSpec
+          for (je <- genExprCode(Cast(u, StringType))) yield
+            JSExpr(je.fnVar, je.linesSoFar, s"${je.getRef}.toUpperCase()", StringType)
+        case Lower(l) =>
+          // TODO: use UpperAndLowerExtractionFunctionSpec
+          for (je <- genExprCode(Cast(l, StringType))) yield
+            JSExpr(je.fnVar, je.linesSoFar, s"${je.getRef}.toLowerCase()", StringType)
+
+        case Substring(str, pos, len) =>
+          // TODO: use SubstringExtractionFunctionSpec
+          for (strJe <- genExprCode(Cast(str, StringType));
+               posJe <- genExprCode(Cast(pos, IntegerType));
+               lenJe <- genExprCode(Cast(len, IntegerType));
+               posL = posJe.getRef.toInt if posL >= 0;
+               lenL = lenJe.getRef.toInt if lenL > 0;) yield {
+            JSExpr(None, s"${strJe.linesSoFar} ${posJe.linesSoFar} ${lenJe.linesSoFar}",
+              s"(${strJe.getRef}).substr(${posJe.getRef}, ${lenJe.getRef})", StringType)
+          }
+
+        case Coalesce(exprs) =>
+          val jes = exprs.flatMap(genExprCode(_))
+          if (jes.size == exprs.size) {
+            Some(jes.foldLeft(JSExpr(None, "", "", StringType)) {
+              (lje, je) =>
+                JSExpr(None, s"${lje.linesSoFar} ${je.linesSoFar}",
+                  if (lje.getRef.isEmpty) s"(${je.getRef})"
+                  else s"(${lje.getRef}) || (${je.getRef})", je.fnDT)
+            })
+          } else None
+
+        case CaseWhenExtract(branches, elseValue) =>
+          val le = branches.flatMap(p => Seq(p._1, p._2)) ++ elseValue.toList
+          val jes = le.flatMap(genExprCode(_))
+          if (jes.size == le.size) {
+            val vn = makeUniqueVarName
+            val je = (0 until jes.size / 2).foldLeft(JSExpr(None, s"$vn = false;", "", BooleanType)) {
+              (lje, i) =>
+                val cond = jes(i * 2)
+                val value = jes(i * 2 + 1)
+                JSExpr(None, lje.linesSoFar +
+                  s"""
+                     ${cond.linesSoFar};
+                     if ($vn != null && !$vn && (${cond.getRef})) {
+                       ${value.linesSoFar};
+                       $vn = ${value.getRef};
+                     }
+                   """.stripMargin, "", lje.fnDT)
+            }
+            if (jes.size % 2 == 1) {
+              val value = jes(jes.size - 1)
+              JSExpr(None, je.linesSoFar +
+                s"""
+                   if ($vn != null && !vn) {
+                     ${value.linesSoFar};
+                     $vn = ${value.getRef};
+                   }
+                 """.stripMargin, "", je.fnDT)
+            } else { // have no else clause
+              JSExpr(None, je.linesSoFar +
+                s"""
+                   if ($vn != null && !vn) {
+                     $vn = null;
+                   }
+                 """.stripMargin, "", je.fnDT)
+            }
+          } else None
+
+        case If(predicate, trueValue, falseValue) =>
+          // TODO: use LooupExtractionFunctionSpec or LookupAggregateSpec
+          for (pje <- genExprCode(predicate);
+               tje <- genExprCode(trueValue);
+               fje <- genExprCode(falseValue)) yield {
+            val vn = makeUniqueVarName
+            JSExpr(None,
+              s"""
+                 var $vn = null;
+                 ${pje.linesSoFar}
+                 ${tje.linesSoFar}
+                 ${fje.linesSoFar}
+                 if (${pje.getRef}) {
+                   $vn = ${tje.getRef};
+                 } else {
+                   $vn = ${fje.getRef};
+                 }
+               """.stripMargin, "", tje.fnDT)
+          }
+
+        case LessThan(l, r) => genComparisonCode(l, r, " < ")
+        case LessThanOrEqual(l, r) => genComparisonCode(l, r, " <= ")
+        case GreaterThan(l, r) => genComparisonCode(l, r, " > ")
+        case GreaterThanOrEqual(l, r) => genComparisonCode(l, r, " >= ")
+        case EqualTo(l ,r) => genComparisonCode(l, r, " == ")
+        case And(l, r) => genComparisonCode(l, r, " && ")
+        case Or(l, r) => genComparisonCode(l, r, " || ")
+        case Not(child) =>
+          for (je <- genExprCode(child)) yield
+            JSExpr(None, je.linesSoFar, s"!(${je.getRef})", BooleanType)
+
+        case In(value, vlist) if vlist.forall(_.isInstanceOf[Literal]) =>
+          val nnvl = vlist.filterNot(v => v.dataType.isInstanceOf[NullType] ||
+            v.asInstanceOf[Literal].value == null)
+          val nnjes = nnvl.flatMap(genExprCode(_))
+          if (nnvl.nonEmpty && nnjes.nonEmpty && nnvl.size == nnjes.size) {
+            for (vje <- genExprCode(value)) yield {
+              val vlje = nnjes.foldLeft(JSExpr(None, "", "", StringType)) {
+                (lje, je) => JSExpr(None, lje.linesSoFar + je.linesSoFar,
+                  if (lje.getRef.isEmpty) s"${je.getRef}: true"
+                  else s"${lje.getRef}, ${je.getRef}: true", je.fnDT)
+              }
+              JSExpr(None, vje.linesSoFar + vlje.linesSoFar,
+                s"${vje.getRef} in ${vlje.getRef}", BooleanType)
+            }
+          } else None
+
+        case InSet(value, vset) if vset.forall(!_.isInstanceOf[Expression]) =>
+          // The because the IN optimization would eval each expression in value list.
 
       }
     } else {
@@ -66,4 +234,35 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
     if (!multiInputParamsAllowed && inParams.size > 1) false else true
   }
 
+  private[this] def genCastExprCode(e: Expression, dt: DataType): Option[JSExpr] = {
+    for (je <- genExprCode(simplifyCast(e, dt));
+         cje <- JSCast(je, dt, this).castCode) yield
+      JSExpr(cje.fnVar, cje.linesSoFar, cje.getRef, dt)
+  }
+
+  private[this] def genComparisonCode(l: Expression, r: Expression, op: String): Option[JSExpr] = {
+    for (lje <- genExprCode(l); rje <- genExprCode(r);
+         compCode <- genComparisionStr(l, lje, r, rje, op)) yield {
+      JSExpr(lje.fnVar.filter(_.nonEmpty).orElse(lje.fnVar),
+        lje.linesSoFar + rje.linesSoFar, compCode, BooleanType)
+    }
+  }
+
+  private[this] def genComparisionStr(l: Expression, lje: JSExpr,
+                                      r: Expression, rje: JSExpr, op: String): Option[String] = {
+    if (l.dataType.isInstanceOf[DateType] || l.dataType.isInstanceOf[TimestampType] ||
+        r.dataType.isInstanceOf[DateType] || r.dataType.isInstanceOf[TimestampType]) {
+      dateComparisonCode(lje.getRef, rje.getRef, op, dateTimeCtx)
+    } else {
+      Some(s"((${lje.getRef}) $op (${rje.getRef}))")
+    }
+  }
+
+  object CaseWhenExtract {
+    def unapply(e: Expression): Option[(Seq[(Expression, Expression)], Option[Expression])] = e match {
+      case CaseWhen(branches, elseValue) => Some((branches, elseValue))
+      case CaseWhenCodegen(branches, elseValue) => Some((branches, elseValue))
+      case _ => None
+    }
+  }
 }

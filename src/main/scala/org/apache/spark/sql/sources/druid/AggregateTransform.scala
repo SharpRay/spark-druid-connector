@@ -19,10 +19,10 @@ trait AggregateTransform {
         if (dc.isDimension()) {
           Some(dqb.dimensionSpec(new DefaultDimensionSpec(dc.name, nm)).outputAttribute(nm,
             grpExpr, dataType, DruidDataType.sparkDataType(dc.dataType)))
-        } else if (!dc.hasDirectDruidColumn) {
+        } else if (dc.isNotIndexedDimension) {
           throw new DruidDataSourceException(s"Column '${dc.name}' is not indexed into datasource.")
         } else {
-          throw new DruidDataSourceException(s"Metric '${dc.name}' cannot be used as a dimension.")
+          None
         }
       case timeElemExtractor(dtGrp) =>
         val timeFmtExtractFunc: ExtractionFunctionSpec = {

@@ -7,10 +7,17 @@ case class JSCast(from: JSExpr, toDT: DataType, ctx: JSCodeGenerator) {
   import JSDateTimeCtx._
 
   private[jscodegen] val castCode: Option[JSExpr] = toDT match {
-    case _ if from.fnDT == NullType =>
-      Some(JSExpr(None, from.linesSoFar, from.getRef, StringType))
-    case BooleanType =>
-
+    case _ if from.fnDT == toDT => Some(from)
+    case BooleanType => castToBooleanType
+    case ShortType => castToNumericCode(ShortType)
+    case IntegerType => castToNumericCode(IntegerType)
+    case LongType => castToNumericCode(LongType)
+    case FloatType => castToNumericCode(FloatType)
+    case DoubleType => castToNumericCode(DoubleType)
+    case StringType => castToStringCode
+    case DateType => castToDateCode
+    case TimestampType => castToTimestampCode
+    case _ => None
   }
 
   private[this] def castToBooleanType: Option[JSExpr] = from.fnDT match {
@@ -53,7 +60,31 @@ case class JSCast(from: JSExpr, toDT: DataType, ctx: JSCodeGenerator) {
     case _ => None
   }
 
+  private[this] def castToDateCode: Option[JSExpr] = from.fnDT match {
+    case StringType =>
+      Some(JSExpr(None, from.linesSoFar, stringToDateCode(from.getRef, ctx.dateTimeCtx), DateType))
+    case TimestampType =>
+      Some(JSExpr(None, from.linesSoFar, dtToDateCode(from.getRef), DateType))
+    case LongType if from.timeDim =>
+      Some(JSExpr(None, from.linesSoFar, longToDateCode(from.getRef, ctx.dateTimeCtx), DateType))
+    case _ => None
+  }
 
+  private[this] def castToTimestampCode: Option[JSExpr] = from.fnDT match {
+    case StringType =>
+      Some(JSExpr(None, from.linesSoFar, stringToISODtCode(from.getRef, ctx.dateTimeCtx), TimestampType))
+    case BooleanType =>
+      Some(JSExpr(None, from.linesSoFar, stringToISODtCode(
+        s""" (${from.getRef}) == true ? "T00:00:01Z" : "T00:00:00Z"""", ctx.dateTimeCtx), TimestampType))
+    case FloatType | DoubleType | DecimalType() =>
+      for (lc <- castToNumericCode(LongType)) yield
+        JSExpr(None, lc.linesSoFar, longToISODtCode(lc.getRef, ctx.dateTimeCtx), TimestampType)
+    case ShortType | IntegerType | LongType =>
+      Some(JSExpr(None, from.linesSoFar, longToISODtCode(from.getRef, ctx.dateTimeCtx), TimestampType))
+    case DateType =>
+      Some(JSExpr(None, from.linesSoFar, localDateToDtCode(from.getRef, ctx.dateTimeCtx), TimestampType))
+    case _ => None
+  }
 
   private[this] def nullSafeCastToString(valToCast: String): Option[JSExpr] = {
     if (from.fnVar.isEmpty) {

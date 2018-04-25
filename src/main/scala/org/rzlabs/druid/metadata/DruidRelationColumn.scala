@@ -39,6 +39,8 @@ case class DruidRelationColumn(column: String,
     hasDirectDruidColumn && druidColumnToUse.isDimension(excludeTime)
   }
 
+  def isNotIndexedDimension = !hasDirectDruidColumn
+
   def isTimeDimension: Boolean = {
     hasDirectDruidColumn && druidColumnToUse.isInstanceOf[DruidTimeDimension]
   }

@@ -19,7 +19,7 @@ private[jscodegen] case class JSDateTimeCtx(val timeZone: String, val ctx: JSCod
       dtInitCode +=
         s"""var $tzVar = org.joda.time.DateTimeZone.forID("$timeZone");"""
     }
-    if (createJodaISOFormatter) {
+    if (createJodaISOFormatter || createJodaISOFormatterWithTz) {
       dtInitCode +=
         s"var $isoFormatterVar = org.joda.time.format.ISODateTimeFormat.dateTimeParser();"
     }
@@ -52,7 +52,7 @@ private[jscodegen] object JSDateTimeCtx {
    * @param dt must be a [[org.joda.time.LocalDate]] literal.
    * @return
    */
-  private[jscodegen] def dateToStrCode(dt: String) = s"$dt.toString($dateFormat)"
+  private[jscodegen] def dateToStrCode(dt: String) = s"""$dt.toString("$dateFormat")"""
 
   /**
    * The ''ts'' param may be a [[org.joda.time.DateTime]] literal.
@@ -68,5 +68,68 @@ private[jscodegen] object JSDateTimeCtx {
   private[jscodegen] def longToISODtCode(l: String, ctx: JSDateTimeCtx) = {
     ctx.createJodaTz = true
     s"new org.joda.time.DateTime($l, ${ctx.tzVar})"
+  }
+
+  private[jscodegen] def stringToDateCode(s: String, ctx: JSDateTimeCtx) = {
+    ctx.createJodaISOFormatter = true
+    s"""org.joda.time.LocalDate.parse($s, ${ctx.isoFormatterVar})"""
+  }
+
+  /**
+   * The ''ts'' param must be a [[org.joda.time.DateTime]] literal.
+   * @param ts
+   * @return
+   */
+  private[jscodegen] def dtToDateCode(ts: String) = {
+    s"${ts}.toLocalDate()"
+  }
+
+  private[jscodegen] def longToDateCode(ts: String, ctx: JSDateTimeCtx) = {
+    ctx.createJodaTz = true
+    s"org.joda.time.LocalDate($ts, ${ctx.tzVar})"
+  }
+
+  private[jscodegen] def stringToISODtCode(s: String, ctx: JSDateTimeCtx) = {
+    ctx.createJodaTz = true
+    ctx.createJodaISOFormatterWithTz = true
+    s"""org.joda.time.DateTime.parse(($s).replace(" ", "T"), ${ctx.isoFormatterWIthTzVar})"""
+  }
+
+  /**
+   * The ''dt'' param must be a [[org.joda.time.LocalDate]] literal.
+   * @param dt
+   * @param ctx
+   * @return
+   */
+  private[jscodegen] def localDateToDtCode(dt: String, ctx: JSDateTimeCtx) = {
+    ctx.createJodaTz = true
+    s"$dt.toDateTimeAsStartOfDay(${ctx.tzVar})"
+  }
+
+  private[jscodegen] def noDaysToDateCode(d: String) = {
+    s"org.joda.time.LocalDate($d * $mSecsInDay)"
+  }
+
+  private[jscodegen] def dateComparisonCode(l: String, r: String, op: String, ctx: JSDateTimeCtx) = {
+    ctx.createJodaTz = true
+    val tfCode =
+      s"""
+         var ll = $l;
+         if (ll.getClass().isAssignableFrom(org.joda.time.LocalDate.class)) {
+           ll = ll.toDateTime(new org.joda.time.LocalTime(0), ${ctx.tzVar})
+         }
+         var rr = $r;
+         if (rr.getClass().isAssignableFrom(org.joda.time.LocalDate.class)) {
+           rr = rr.toDateTime(new org.joda.time.LocalTime(0), ${ctx.tzVar})
+         }
+       """.stripMargin
+    op match {
+      case " < " => Some(s"""$tfCode ll.isBefore(rr)""")
+      case " <= " => Some(s"$tfCode ll.compareTo(rr) <= 0")
+      case " > " => Some(s"$tfCode ll.isAfter(rr)")
+      case " >= " => Some(s"$tfCode ll.compareTo(rr) >= 0")
+      case " = " => Some(s"$tfCode ll.equals(rr)")
+      case _ => None
+    }
   }
 }
