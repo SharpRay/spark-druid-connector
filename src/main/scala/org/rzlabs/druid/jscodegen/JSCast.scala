@@ -72,7 +72,7 @@ case class JSCast(from: JSExpr, toDT: DataType, ctx: JSCodeGenerator) {
 
   private[this] def castToTimestampCode: Option[JSExpr] = from.fnDT match {
     case StringType =>
-      Some(JSExpr(None, from.linesSoFar, stringToISODtCode(from.getRef, ctx.dateTimeCtx), TimestampType))
+      Some(JSExpr(None, from.linesSoFar, stringToISODtCode(from.getRef, ctx.dateTimeCtx, true, ), TimestampType))
     case BooleanType =>
       Some(JSExpr(None, from.linesSoFar, stringToISODtCode(
         s""" (${from.getRef}) == true ? "T00:00:01Z" : "T00:00:00Z"""", ctx.dateTimeCtx), TimestampType))

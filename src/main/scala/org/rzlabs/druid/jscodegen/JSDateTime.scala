@@ -44,7 +44,7 @@ private[jscodegen] object JSDateTimeCtx {
    * @param ts must be a [[org.joda.time.DateTime]] literal.
    * @return
    */
-  private[jscodegen] def dtToLongCode(ts: String) = s"$ts.getMillis() / 1000"
+  private[jscodegen] def dtToLongCode(ts: String) = s"Math.floor($ts.getMillis() / 1000)"
 
   /**
    * The 'dt' param may be a [[org.joda.time.LocalDate]] literal,
@@ -61,8 +61,13 @@ private[jscodegen] object JSDateTimeCtx {
    * @return
    */
   private[jscodegen] def dtToStrCode(ts: String,
-                                     fmt: String = timestampFormat) = {
-    s"""$ts.toString("$fmt")"""
+                                     fmt: String = timestampFormat,
+                                     litFmt: Boolean = true) = {
+    if (litFmt) {
+      s"""$ts.toString("$fmt")"""
+    } else {
+      s"""$ts.toString($fmt)"""
+    }
   }
 
   private[jscodegen] def longToISODtCode(l: String, ctx: JSDateTimeCtx) = {
@@ -89,10 +94,21 @@ private[jscodegen] object JSDateTimeCtx {
     s"org.joda.time.LocalDate($ts, ${ctx.tzVar})"
   }
 
-  private[jscodegen] def stringToISODtCode(s: String, ctx: JSDateTimeCtx) = {
+
+  private[jscodegen] def stringToISODtCode(s: String, ctx: JSDateTimeCtx,
+                                           withFmt: Boolean = false, litFmt: Boolean = true,
+                                           fmt: String = null) = {
     ctx.createJodaTz = true
     ctx.createJodaISOFormatterWithTz = true
-    s"""org.joda.time.DateTime.parse(($s).replace(" ", "T"), ${ctx.isoFormatterWIthTzVar})"""
+    if (!withFmt) {
+      s"""org.joda.time.DateTime.parse(($s).replace(" ", "T"), ${ctx.isoFormatterWIthTzVar})"""
+    } else if (litFmt) {
+      s"""org.joda.time.DateTime.parse($s,
+         |org.joda.time.DateTimeFormat.forPattern("$fmt").withZone(${ctx.tzVar}))""".stripMargin
+    } else {
+      s"""org.joda.time.DateTime.parse($s,
+         |org.joda.time.DateTimeFormat.forPattern($fmt).withZone(${ctx.tzVar}))""".stripMargin
+    }
   }
 
   /**
@@ -110,26 +126,36 @@ private[jscodegen] object JSDateTimeCtx {
     s"org.joda.time.LocalDate($d * $mSecsInDay)"
   }
 
-  private[jscodegen] def dateComparisonCode(l: String, r: String, op: String, ctx: JSDateTimeCtx) = {
-    ctx.createJodaTz = true
-    val tfCode =
-      s"""
-         var ll = $l;
-         if (ll.getClass().isAssignableFrom(org.joda.time.LocalDate.class)) {
-           ll = ll.toDateTime(new org.joda.time.LocalTime(0), ${ctx.tzVar})
-         }
-         var rr = $r;
-         if (rr.getClass().isAssignableFrom(org.joda.time.LocalDate.class)) {
-           rr = rr.toDateTime(new org.joda.time.LocalTime(0), ${ctx.tzVar})
-         }
-       """.stripMargin
+  private[jscodegen] def dateComparisonCode(l: String, r: String, op: String) = {
     op match {
-      case " < " => Some(s"""$tfCode ll.isBefore(rr)""")
-      case " <= " => Some(s"$tfCode ll.compareTo(rr) <= 0")
-      case " > " => Some(s"$tfCode ll.isAfter(rr)")
-      case " >= " => Some(s"$tfCode ll.compareTo(rr) >= 0")
-      case " = " => Some(s"$tfCode ll.equals(rr)")
+      case " < " => Some(s"$l.isBefore($r)")
+      case " <= " => Some(s"$l.compareTo($r) <= 0")
+      case " > " => Some(s"$l.isAfter($r)")
+      case " >= " => Some(s"$l.compareTo($r) >= 0")
+      case " = " => Some(s"$l.equals($r)")
       case _ => None
     }
+  }
+
+  private[jscodegen] def dateAdd(dt: String, nd: String) = s"$dt.plusDays($nd)"
+  private[jscodegen] def dateSub(dt: String, nd: String) = s"$dt.minusDays($nd)"
+  private[jscodegen] def dateDiff(ed: String, sd: String) = {
+    s"org.joda.time.Days.daysBetween($sd, $ed).getDays()"
+  }
+
+  private[jscodegen] def year(dt: String) = s"$dt.getYear()"
+  private[jscodegen] def quarter(dt: String) = s"(Math.floor(($dt.getMonthOfYear() - 1) / 3) + 1)"
+  private[jscodegen] def month(dt: String) = s"$dt.getMonthOfYear()"
+  private[jscodegen] def dayOfMonth(dt: String) = s"$dt.getDayOfMonth()"
+  private[jscodegen] def dayOfYear(dt: String) = s"$dt.getDayOfYear()"
+  private[jscodegen] def weekOfYear(dt: String) = s"$dt.getWeekOfYear()"
+  private[jscodegen] def hourOfDay(dt: String) = s"$dt.getHourOfDay()"
+  private[jscodegen] def minuteOfHour(dt: String) = s"$dt.getMinuteOfHour()"
+  private[jscodegen] def secondOfMinute(dt: String) = s"$dt.getSecondOfMinute()"
+
+  private[jscodegen] def truncate(dt: String, fmt: String)= fmt.toLowerCase() match {
+    case "year" | "yyyy" | "yy" => s"$dt.withDayOfYear(1)"
+    case "month" | "mon" | "mm" => s"$dt.withDayOfMonth(1)"
+    case _ => "null"
   }
 }

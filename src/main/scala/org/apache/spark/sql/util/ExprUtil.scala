@@ -5,6 +5,10 @@ import org.apache.spark.sql.types._
 
 object ExprUtil {
 
+  def escapeLikeRegex(v: String): String = {
+    org.apache.spark.sql.catalyst.util.StringUtils.escapeLikeRegex(v)
+  }
+
   /**
    * Simplify Cast expression by removing inner most cast if redundant.
    * @param oe

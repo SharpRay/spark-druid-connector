@@ -6,7 +6,10 @@ import org.apache.spark.sql.types._
 import org.rzlabs.druid.DruidQueryBuilder
 import org.rzlabs.druid._
 import JSDateTimeCtx._
+import org.apache.commons.lang.StringEscapeUtils
+import org.apache.spark.sql.util.ExprUtil
 import org.apache.spark.sql.util.ExprUtil._
+import org.apache.spark.unsafe.types.UTF8String
 
 /**
  * Generate Javascript code used in [[JavascriptAggregationSpec]], [[JavascriptExtractionFunctionSpec]],
@@ -36,14 +39,35 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
 
   private[this] var inParams: Set[String] = Set()
 
-  private[jscodegen] def fnElements: Option[(String, String)] = None
+  /**
+   * Compose the js function literal.
+   * @return Option[(function body, return value)]
+   */
+  private[jscodegen] def fnElements: Option[(String, String)] = {
+    for (je <- genExprCode(e) if inParams.nonEmpty; // must have a column at least
+         rje <- JSCast(je, retType, this).castCode) yield {
+      (
+        s"""
+           ${dateTimeCtx.dateTimeInitCode}
+           ${rje.linesSoFar}
+         """.stripMargin, rje.getRef)
+    }
+  }
+
+  def fnCode: Option[String] = {
+    for (fn <- fnElements) yield {
+      s"""function (${inParams.mkString(", ")}) {
+         ${fn._1};
+         return (${fn._2});
+         }""".stripMargin
+    }
+  }
 
   private[jscodegen] def isIntegralNumeric(dt: DataType) = dt match {
     case ShortType | IntegerType | LongType => true
     case _ => false
   }
 
-  def fnCode: Option[String] = None
 
   private[this] def genExprCode(oe: Any): Option[JSExpr] = {
     if (oe.isInstanceOf[Expression]) {
@@ -73,7 +97,7 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
             case ShortType | IntegerType | LongType | FloatType | DoubleType =>
               Some(new JSExpr(v.toString, dataType, false))
             case StringType =>
-              Some(new JSExpr(s""""v.toString"""", dataType, false))
+              Some(new JSExpr(s""""${v.toString}"""", dataType, false))
             case NullType => Some(new JSExpr("null", dataType, false))
             case DateType if v.isInstanceOf[Int] =>
               // days number
@@ -148,20 +172,20 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
             }
             if (jes.size % 2 == 1) {
               val value = jes(jes.size - 1)
-              JSExpr(None, je.linesSoFar +
+              Some(JSExpr(None, je.linesSoFar +
                 s"""
                    if ($vn != null && !vn) {
                      ${value.linesSoFar};
                      $vn = ${value.getRef};
                    }
-                 """.stripMargin, "", je.fnDT)
+                 """.stripMargin, "", je.fnDT))
             } else { // have no else clause
-              JSExpr(None, je.linesSoFar +
+              Some(JSExpr(None, je.linesSoFar +
                 s"""
                    if ($vn != null && !vn) {
                      $vn = null;
                    }
-                 """.stripMargin, "", je.fnDT)
+                 """.stripMargin, "", je.fnDT))
             }
           } else None
 
@@ -208,13 +232,169 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
                   else s"${lje.getRef}, ${je.getRef}: true", je.fnDT)
               }
               JSExpr(None, vje.linesSoFar + vlje.linesSoFar,
-                s"${vje.getRef} in ${vlje.getRef}", BooleanType)
+                s"${vje.getRef} in {${vlje.getRef}}", BooleanType)
             }
           } else None
 
         case InSet(value, vset) if vset.forall(!_.isInstanceOf[Expression]) =>
           // The because the IN optimization would eval each expression in value list.
+          val nnvl = vset.filter(_ != null)
+          val nnjes = nnvl.flatMap(genExprCode(_))
+          if (nnjes.nonEmpty && nnvl.nonEmpty && nnvl.size == nnjes.size) {
+            for (vje <- genExprCode(value)) yield {
+              val vlje = nnjes.foldLeft(JSExpr(None, "", "", StringType)) {
+                (lje, je) => JSExpr(None, lje.linesSoFar + je.linesSoFar,
+                  if (lje.getRef.isEmpty) s"${je.getRef}: true"
+                  else s"${lje.getRef}, ${je.getRef}: true", je.fnDT)
+              }
+              JSExpr(None, vje.linesSoFar + vlje.linesSoFar,
+                s"${vje.getRef} in {${vlje.getRef}", BooleanType)
+            }
+          } else None
 
+        case ToDate(child) =>
+          for (je <- genExprCode(child); cje <- JSCast(je, DateType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, cje.getRef, DateType)
+        case DateAdd(startDate, days) =>
+          for (sdje <- genExprCode(startDate); csdje <- JSCast(sdje, DateType, this).castCode;
+               dje <- genExprCode(days); cdje <- JSCast(dje, IntegerType, this).castCode;
+               cje <- JSCast(JSExpr(None, csdje.linesSoFar + cdje.linesSoFar,
+                 dateAdd(csdje.getRef, cdje.getRef), DateType), StringType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, cje.getRef, StringType)
+        case DateSub(startDate, days) =>
+          for (sdje <- genExprCode(startDate); csdje <- JSCast(sdje, DateType, this).castCode;
+               dje <- genExprCode(days); cdje <- JSCast(dje, IntegerType, this).castCode;
+               cje <- JSCast(JSExpr(None, csdje.linesSoFar + cdje.linesSoFar,
+                 dateSub(csdje.getRef, cdje.getRef), DateType), StringType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, cje.getRef, StringType)
+        case DateDiff(endDate, startDate) =>
+          for (edje <- genExprCode(endDate); JSCast(edje, DateType, this).castCode;
+               sdje <- genExprCode(startDate); JSCast(sdje, DateType, this).castCode) yield
+              JSExpr(None, edje.linesSoFar + sdje.linesSoFar,
+                dateDiff(edje.getRef, sdje.getRef), IntegerType)
+        case Year(y) =>
+          for (je <- genExprCode(y); cje <- JSCast(je, DateType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, year(cje.getRef), IntegerType)
+        case Quarter(q) =>
+          for (je <- genExprCode(q); cje <- JSCast(je, DateType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, year(cje.getRef), IntegerType)
+        case Month(m) =>
+          for (je <- genExprCode(m); cje <- JSCast(je, DateType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, month(cje.getRef), IntegerType)
+        case DayOfMonth(d) =>
+          for (je <- genExprCode(d); cje <- JSCast(je, DateType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, dayOfMonth(cje.getRef), IntegerType)
+        case DayOfYear(d) =>
+          for (je <- genExprCode(d); cje <- JSCast(je, DateType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, dayOfYear(cje.getRef), IntegerType)
+        case WeekOfYear(w) =>
+          for (je <- genExprCode(w); cje <- JSCast(je, DateType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, weekOfYear(cje.getRef), IntegerType)
+        case Hour(h) =>
+          for (je <- genExprCode(h); cje <- JSCast(je, TimestampType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, hourOfDay(cje.getRef), IntegerType)
+        case Minute(m) =>
+          for (je <- genExprCode(m); cje <- JSCast(je, TimestampType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, minuteOfHour(cje.getRef), IntegerType)
+        case Second(s) =>
+          for (je <- genExprCode(s); cje <- JSCast(je, TimestampType, this).castCode) yield
+            JSExpr(cje.fnVar, cje.linesSoFar, secondOfMinute(cje.getRef), IntegerType)
+
+        case FromUnixTime(sec, fmt) =>
+          for (sje <- genExprCode(sec); csje <- JSCast(sje, LongType, this).castCode;
+               fje <- genExprCode(fmt); cfje <- JSCast(fje, StringType, this).castCode) yield {
+            val dtCode = longToISODtCode(csje.getRef, dateTimeCtx)
+            JSExpr(None, csje.linesSoFar + cfje.linesSoFar,
+              if (fmt.isInstanceOf[Literal]) dtToStrCode(dtCode, fje.getRef)
+              else dtToStrCode(dtCode, fje.getRef, false), StringType)
+          }
+
+        case UnixTimestamp(time, fmt) =>
+          // Because String -> Timestamp cast will call 'stringToISODtCode' method without
+          // format string, so we cast to StringType first, then call 'stringToISODtCode'
+          // manually with format.
+          for (tje <- genExprCode(time); ctje <- JSCast(tje, StringType, this).castCode;
+               fje <- genExprCode(fmt); cfje <- JSCast(fje, StringType, this).castCode) yield {
+            val longCode = dtToLongCode(stringToISODtCode(tje.getRef, dateTimeCtx, true,
+              if (fmt.isInstanceOf[Literal]) true else false, fje.getRef))
+            JSExpr(None, ctje.linesSoFar + cfje.linesSoFar, longCode, LongType)
+          }
+
+        case TruncDate(date, fmt) =>
+          for (dje <- genExprCode(date); cdje <- JSCast(dje, DateType, this).castCode;
+               fje <- genExprCode(fmt); cfje <- JSCast(fje, StringType, this).castCode) yield
+            JSExpr(None, cdje.linesSoFar + cfje.linesSoFar,
+              truncate(cdje.getRef, cfje.getRef), StringType)
+
+        case DateFormatClass(dt, fmt) =>
+          for (dje <- genExprCode(dt); cdje <- JSCast(dje, TimestampType, this).castCode;
+               fje <- genExprCode(fmt); cfje <- JSCast(fje, StringType, this).castCode) yield
+            JSExpr(None, cdje.linesSoFar + cfje.linesSoFar, dtToStrCode(cdje.getRef,
+              cfje.getRef, if(fmt.isInstanceOf[Literal]) true else false), StringType)
+
+        case Add(l, r) => genBinaryArithmeticExprCode(l, r, e, "+")
+        case Subtract(l, r) => genBinaryArithmeticExprCode(l, r, e, "-")
+        case Multiply(l, r) => genBinaryArithmeticExprCode(l, r, e, "*")
+        case Divide(l, r) => genBinaryArithmeticExprCode(l, r, e, "/")
+        case Remainder(l, r) => genBinaryArithmeticExprCode(l, r, e, "%")
+        case Pmod(l, r) =>
+          for (lje <- genExprCode(l); clje <- JSCast(lje, castType(l.dataType), this).castCode;
+               rje <- genExprCode(r); crje <- JSCast(rje, castType(r.dataType), this).castCode) yield {
+            val vn = makeUniqueVarName
+            JSExpr(None, clje.linesSoFar + crje.linesSoFar +
+                         s"""$vn = null;
+                            if (${clje.getRef} > 0) {
+                              $vn = Math.abs(${clje.getRef}) % Math.abs(${crje.getRef})
+                            } else if (${crje.getRef} > 0) {
+                              $vn = ${crje.getRef} - Math.abs(${clje.getRef}) % (${crje.getRef})
+                            } else {
+                              $vn = -(Math.abs(${clje.getRef}) % Math.abs(${crje.getRef}))
+                            }
+                          """.stripMargin, "", e.dataType)
+          }
+        case Abs(child) => genUnaryExprCode(child, e, "Math.abs")
+        case Floor(child) => genUnaryExprCode(child, e, "Math.floor")
+        case Ceil(child) => genUnaryExprCode(child, e, "Math.ceil")
+        case Sqrt(child) => genUnaryExprCode(child, e, "Math.sqrt")
+        case Logarithm(Literal(2.718281828459045, DoubleType), child) =>
+          genUnaryExprCode(child, e, "Math.log")
+        case UnaryMinus(child) => genUnaryExprCode(child, e, "-")
+        case UnaryPositive(child) => genUnaryExprCode(child, e, "+")
+
+        case JSStringPredicate(l, r, strFn) =>
+          for (lje <- genExprCode(l); clje <- JSCast(lje, StringType, this).castCode;
+               rVal <- Some(r.eval()) if rVal != null) yield {
+            val s = rVal.asInstanceOf[UTF8String].toString
+            JSExpr(None, lje.linesSoFar,
+              s"java.lang.String(${lje.getRef}).${strFn}(s)", BooleanType)
+          }
+
+        case JSLike(l, r, likeMatch) =>
+          for (lje <- genExprCode(l); clje <- JSCast(lje, StringType, this).castCode;
+               rVal <- Some(r.eval()) if rVal != null) yield {
+            var regexStr = rVal.asInstanceOf[UTF8String].toString
+            val reV = makeUniqueVarName
+            val v = makeUniqueVarName
+            var jsCode: String = null
+            if (likeMatch) {
+              regexStr = StringEscapeUtils.
+                escapeJava(ExprUtil.escapeLikeRegex(regexStr))
+              jsCode =
+                s"""
+                   |var ${reV} = java.util.regex.Pattern.compile("${regexStr}");
+                   |var ${v} = ${reV}.matcher(${clje.getRef}).matches();
+                 """.stripMargin
+            } else {
+              jsCode =
+                s"""
+                   |var ${reV} = java.util.regex.Pattern.compile("${regexStr}");
+                   |var ${v} = ${reV}.matcher(${clje.getRef}).find(0);
+                 """.stripMargin
+            }
+            JSExpr(None, clje.linesSoFar + jsCode, "", BooleanType)
+          }
+
+        case _ => None
       }
     } else {
       oe match {
@@ -248,13 +428,58 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
     }
   }
 
+  private[this] def castType(dataType: DataType) = dataType match {
+    case ShortType | IntegerType | LongType | FloatType |
+         DoubleType | DecimalType() => dataType
+    case _ => DoubleType
+  }
+
+  private[this] def genBinaryArithmeticExprCode(l: Expression, r: Expression,
+                                                c: Expression, op: String): Option[JSExpr] = {
+    var op1 = op
+    val lCastType = castType(l.dataType)
+    val rCastType = castType(r.dataType)
+
+    for (lje <- genExprCode(l); clje <- JSCast(lje, lCastType, this).castCode;
+         rje <- genExprCode(r); crje <- JSCast(rje, rCastType, this).castCode) yield
+      JSExpr(None, clje.linesSoFar + crje.linesSoFar,
+        s"(${clje.getRef}) ${op1} (${crje.getRef})", c.dataType)
+  }
+
+  private[this] def genUnaryExprCode(ue: Expression, c: Expression, op: String): Option[JSExpr] = {
+    for (je <- genExprCode(ue); cje <- JSCast(je, castType(ue.dataType), this).castCode) yield
+      JSExpr(None, cje.linesSoFar, s"$op(${cje.getRef})", c.dataType)
+  }
+
   private[this] def genComparisionStr(l: Expression, lje: JSExpr,
                                       r: Expression, rje: JSExpr, op: String): Option[String] = {
-    if (l.dataType.isInstanceOf[DateType] || l.dataType.isInstanceOf[TimestampType] ||
+    val ret = if (l.dataType.isInstanceOf[DateType] || l.dataType.isInstanceOf[TimestampType] ||
         r.dataType.isInstanceOf[DateType] || r.dataType.isInstanceOf[TimestampType]) {
-      dateComparisonCode(lje.getRef, rje.getRef, op, dateTimeCtx)
+      val oclje = JSCast(lje, TimestampType, this).castCode
+      val ocrje = JSCast(rje, TimestampType, this).castCode
+      for (clje <- oclje; crje <- ocrje) yield {
+        dateComparisonCode(clje.getRef, crje.getRef, op)
+      }
     } else {
-      Some(s"((${lje.getRef}) $op (${rje.getRef}))")
+      Some(Some(s"((${lje.getRef}) $op (${rje.getRef}))"))
+    }
+    ret.flatten
+  }
+
+  object JSLike {
+    def unapply(pe: Expression): Option[(Expression, Expression, Boolean)] = pe match {
+      case Like(l, r) if r.foldable => Some((l, r, true))
+      case RLike(l, r) if r.foldable => Some((l, r, false))
+      case _ => None
+    }
+  }
+
+  object JSStringPredicate {
+    def unapply(pe: Expression): Option[(Expression, Expression, String)] = pe match {
+      case StartsWith(l, r) if r.foldable => Some((l, r, "startsWith"))
+      case EndsWith(l, r) if r.foldable => Some((l, r, "endsWith"))
+      case Contains(l, r) if r.foldable => Some(l, r, "contains")
+      case _ => None
     }
   }
 
