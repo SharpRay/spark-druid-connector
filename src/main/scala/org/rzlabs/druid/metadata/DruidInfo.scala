@@ -1,7 +1,7 @@
 package org.rzlabs.druid.metadata
 
 import org.apache.spark.sql.MyLogging
-import org.rzlabs.druid.DruidQueryGranularity
+import org.rzlabs.druid.{DruidDataSource, DruidQueryGranularity}
 
 case class DruidOptions(zkHost: String,
                         zkSessionTimeoutMs: Int,
@@ -19,6 +19,7 @@ case class DruidRelationName(zkHost: String, druidDataSource: String)
 
 case class DruidRelationInfo(fullName: DruidRelationName,
                              timeDimensionCol: String,
+                             druidDataSource: DruidDataSource,
                              val druidColumns: Map[String, DruidRelationColumn],
                              val options: DruidOptions)
 

@@ -39,6 +39,8 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
 
   private[this] var inParams: Set[String] = Set()
 
+  def fnParams = inParams.toList
+
   /**
    * Compose the js function literal.
    * @return Option[(function body, return value)]
@@ -136,7 +138,7 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
                posJe <- genExprCode(Cast(pos, IntegerType));
                lenJe <- genExprCode(Cast(len, IntegerType));
                posL = posJe.getRef.toInt if posL >= 0;
-               lenL = lenJe.getRef.toInt if lenL > 0;) yield {
+               lenL = lenJe.getRef.toInt if lenL > 0) yield {
             JSExpr(None, s"${strJe.linesSoFar} ${posJe.linesSoFar} ${lenJe.linesSoFar}",
               s"(${strJe.getRef}).substr(${posJe.getRef}, ${lenJe.getRef})", StringType)
           }
@@ -268,10 +270,10 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
                  dateSub(csdje.getRef, cdje.getRef), DateType), StringType, this).castCode) yield
             JSExpr(cje.fnVar, cje.linesSoFar, cje.getRef, StringType)
         case DateDiff(endDate, startDate) =>
-          for (edje <- genExprCode(endDate); JSCast(edje, DateType, this).castCode;
-               sdje <- genExprCode(startDate); JSCast(sdje, DateType, this).castCode) yield
-              JSExpr(None, edje.linesSoFar + sdje.linesSoFar,
-                dateDiff(edje.getRef, sdje.getRef), IntegerType)
+          for (edje <- genExprCode(endDate); cedje <- JSCast(edje, DateType, this).castCode;
+               sdje <- genExprCode(startDate); csdje <- JSCast(sdje, DateType, this).castCode) yield
+              JSExpr(None, cedje.linesSoFar + csdje.linesSoFar,
+                dateDiff(cedje.getRef, csdje.getRef), IntegerType)
         case Year(y) =>
           for (je <- genExprCode(y); cje <- JSCast(je, DateType, this).castCode) yield
             JSExpr(cje.fnVar, cje.linesSoFar, year(cje.getRef), IntegerType)

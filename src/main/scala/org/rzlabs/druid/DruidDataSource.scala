@@ -91,15 +91,15 @@ case class DruidDataSource(name: String,
                            size: Long,
                            numRows: Long,
                            timeTicks: Long,
-                           aggregators: Map[String, Aggregator] = null,
-                           timestampSpec: TimestampSpec = null,
+                           aggregators: Option[Map[String, Aggregator]] = None,
+                           timestampSpec: Option[TimestampSpec] = None,
                            druidVersion: String = null) extends DruidDataSourceCapability {
 
   import DruidDataSource._
 
   lazy val timeDimension: Option[DruidColumn] = columns.values.find {
     case c if c.name == INNER_TIME_COLUMN_NAME => true
-    case c if timestampSpec != null && c.name == timestampSpec.column => true
+    case c if timestampSpec.isDefined && c.name == timestampSpec.get.column => true
     case _ => false
   }
 

@@ -1103,10 +1103,11 @@ sealed trait AggregationSpec {
  * @param name The output name.
  */
 case class CountAggregationSpec(`type`: String,
-                                name: String
+                                name: String,
+                                fieldName: String
                                ) extends AggregationSpec {
-  def this(name: String) = {
-    this("count", name)
+  def this(name: String, fieldName: String) = {
+    this("count", name, fieldName)
   }
 }
 
@@ -1120,6 +1121,11 @@ case class SumAggregationSpec(`type`: String,
                               name: String,
                               fieldName: String
                              ) extends AggregationSpec
+
+case class MinMaxAggregationSpec(`type`: String,
+                                 name: String,
+                                 fieldName: String
+                                ) extends AggregationSpec
 
 /**
  * computes the minimum of all metric values and Double.POSITIVE_INFINITY
@@ -1199,7 +1205,7 @@ case class JavascriptAggregationSpec(`type`: String,
  * the cardinality aggregator if you do not care about the individual values of a dimenson.
  * @param `type` This string should always be "cardinality".
  * @param name The output metric name.
- * @param fields The dimensions  compute cardinality.
+ * @param fields The dimensions compute cardinality.
  * @param byRow When setting `byRow` to `false` (the default) it computes the cardinality
  *              of the set composed of the union of all dimension values for all the
  *              given dimensions. For a single dimension, this is equivalent to `SELECT
@@ -1218,22 +1224,23 @@ case class JavascriptAggregationSpec(`type`: String,
  */
 case class CardinalityAggregationSpec(`type`: String,
                                       name: String,
-                                      fields: List[Either[String, DimensionSpec]],
+                                      //fields: List[Either[String, DimensionSpec]],
+                                      fields: List[String],
                                       byRow: Boolean,
                                       round: Boolean
                                      ) extends AggregationSpec {
 
-  def this(name: String, fields: List[Either[String, DimensionSpec]],
+  def this(name: String, fields: List[String],
            byRow: Boolean, round: Boolean) = {
     this("cardinality", name, fields, byRow, round)
   }
 
-  def this(name: String, fields: List[Either[String, DimensionSpec]],
+  def this(name: String, fields: List[String],
            byRow: Boolean) = {
     this(name, fields, byRow, true)
   }
 
-  def this(name: String, fields: List[Either[String, DimensionSpec]]) = {
+  def this(name: String, fields: List[String]) = {
     this(name, fields, false)
   }
 }

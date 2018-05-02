@@ -60,8 +60,8 @@ case class MetadataResponse(id: String,
                             size: Long,
                             @JsonDeserialize(contentAs = classOf[java.lang.Long])
                             numRows: Option[Long],
-                            aggregators: Map[String, Aggregator],
-                            timestampSpec: TimestampSpec,
+                            aggregators: Option[Map[String, Aggregator]] = None,
+                            timestampSpec: Option[TimestampSpec] = None,
                             queryGranularity: Option[DruidQueryGranularity]) {
 
   def getIntervals: List[Interval] = intervals.map(Interval.parse(_))

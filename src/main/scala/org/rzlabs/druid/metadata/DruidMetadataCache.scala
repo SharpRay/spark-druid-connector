@@ -55,7 +55,7 @@ trait DruidRelationInfoCache {
         druidColumn.dataType == DruidDataType.ThetaSketch
     }
 
-    val normalColumns = columns.map {
+    val normalColumns: Map[String, DruidRelationColumn] = columns.map {
       case (columnName, druidColumn) if !isApproxMetric(druidColumn) =>
         val ci = userSpecifiedColumnInfos.find(_.column == columnName).getOrElse(null)
         val druidRelationColumn = if (ci != null) {
@@ -74,11 +74,11 @@ trait DruidRelationInfoCache {
         } else None
         columnName -> druidRelationColumn.copy(cardinalityEstimate = cardinality)
       // Approx metric information should be carried by related origin column.
-      case _ => null -> null
+      case _ => (null, null)
     }.filterNot(_._1 == null)
 
     // For the dimension user specified but not indexed in Druid datasource.
-    val notIndexedColumns = userSpecifiedColumnInfos.collect {
+    val notIndexedColumns: Map[String, DruidRelationColumn] = userSpecifiedColumnInfos.collect {
       case ci if !columns.exists(_ == ci.column) => ci
     }.map {
       case ci: DruidRelationColumnInfo =>
@@ -91,8 +91,8 @@ trait DruidRelationInfoCache {
             Some(druidColumn.asInstanceOf[DruidMetric].cardinality)
           case _ => None
         }
-        DruidRelationColumn(ci.column, None, hllMetric, sketchMetric, cardinality)
-    }
+        ci.column -> DruidRelationColumn(ci.column, None, hllMetric, sketchMetric, cardinality)
+    }.toMap
 
     normalColumns ++ notIndexedColumns
   }
@@ -105,14 +105,14 @@ trait DruidRelationInfoCache {
     val name = DruidRelationName(options.zkHost, dataSourceName)
     val druidDS = getDataSourceInfo(name, options)
     val columnInfos = buildColumnInfos(druidDS, userSpecifiedColumnInfos)
-    val timeDimCol = if (druidDS.timestampSpec != null) {
-      druidDS.timestampSpec.column
+    val timeDimCol = if (druidDS.timestampSpec.nonEmpty) {
+      druidDS.timestampSpec.get.column
     } else if (timeDimensionCol != null) {
       timeDimensionCol
     } else {
       throw new DruidDataSourceException("The datasource time dimension should be specified.")
     }
-    DruidRelationInfo(name, timeDimCol, columnInfos, options)
+    DruidRelationInfo(name, timeDimCol, druidDS, columnInfos, options)
   }
 }
 

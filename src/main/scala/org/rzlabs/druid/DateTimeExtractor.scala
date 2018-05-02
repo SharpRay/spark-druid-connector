@@ -35,7 +35,7 @@ object DruidColumnExtractor {
   }
 }
 
-class SparkNativeTimeElementExtractor(val dqb: DruidQueryBuilder) {
+class SparkNativeTimeElementExtractor(implicit val dqb: DruidQueryBuilder) {
 
   self =>
 

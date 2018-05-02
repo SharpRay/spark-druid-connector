@@ -36,6 +36,11 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
 
   def dimensionSpec(d: DimensionSpec) = {
     this.copy(dimensions = dimensions :+ d)
+
+  }
+
+  def aggregationSpec(a: AggregationSpec) = {
+    this.copy(aggregations = aggregations :+ a)
   }
 
   /**
@@ -63,6 +68,10 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
                       druidDT: DataType, tfName: String = null) = {
     val tf = if (tfName == null) DruidValTransform.getTFName(druidDT) else tfName
     this.copy(outputAttributeMap = outputAttributeMap + (name -> (e, originalDT, druidDT, tf)))
+  }
+
+  def avgExpression(e: Expression, sumAlias: String, countAlias: String) = {
+    this.copy(avgExpressions = avgExpressions + (e -> (sumAlias, countAlias)))
   }
 
 }
