@@ -75,3 +75,9 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
   }
 
 }
+
+object DruidQueryBuilder {
+  def apply(druidRelationInfo: DruidRelationInfo) = {
+    new DruidQueryBuilder(druidRelationInfo, new QueryIntervals(druidRelationInfo))
+  }
+}

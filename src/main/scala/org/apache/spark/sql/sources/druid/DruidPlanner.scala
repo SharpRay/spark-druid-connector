@@ -6,10 +6,11 @@ import org.rzlabs.druid.client.ConnectionManager
 import org.rzlabs.druid.metadata.DruidOptions
 
 class DruidPlanner(val druidOptions: DruidOptions) extends DruidTransforms
-  with AggregateTransform {
+  with AggregateTransform with ProjectFilterTransform {
 
   val transforms: Seq[DruidTransform] = Seq(
     aggregateTransform.debug("aggregate")
+
   )
 
   def plan(dqb: Seq[DruidQueryBuilder], plan: LogicalPlan): Seq[DruidQueryBuilder] = {
