@@ -27,7 +27,9 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
                              aggregateOper: Option[Aggregate] = None,
                              curId: AtomicLong = new AtomicLong(-1),
                              origProjectList: Option[Seq[NamedExpression]] = None,
-                             origFilter: Option[Expression] = None
+                             origFilter: Option[Expression] = None,
+                             hasUnpushedProjections: Boolean = false,
+                             hasUnpushedFilters: Boolean = false
                             ) {
 
   def isNonTimeDimension(name: String) = {
@@ -41,6 +43,13 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
 
   def aggregationSpec(a: AggregationSpec) = {
     this.copy(aggregations = aggregations :+ a)
+  }
+
+  def filterSpecification(f: FilterSpec) = (filterSpec, f) match {
+    case (Some(fs), _) =>
+      this.copy(filterSpec = Some(new LogicalExpressionFilterSpec("and", List(f, fs))))
+    case (None, _) =>
+      this.copy(filterSpec = Some(f))
   }
 
   /**
@@ -58,6 +67,17 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
     }
   }
 
+  def queryInterval(ic: IntervalCondition): Option[DruidQueryBuilder] = ic.`type` match {
+    case IntervalConditionType.LT =>
+      queryIntervals.ltCond(ic.dt).map(qi => this.copy(queryIntervals = qi))
+    case IntervalConditionType.LTE =>
+      queryIntervals.lteCond(ic.dt).map(qi => this.copy(queryIntervals = qi))
+    case IntervalConditionType.GT =>
+      queryIntervals.gtCond(ic.dt).map(qi => this.copy(queryIntervals = qi))
+    case IntervalConditionType.GTE =>
+      queryIntervals.gteCond(ic.dt).map(qi => this.copy(queryIntervals = qi))
+  }
+
   /**
    * From "alias-1" to "alias-N".
    * @return
@@ -68,6 +88,11 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
                       druidDT: DataType, tfName: String = null) = {
     val tf = if (tfName == null) DruidValTransform.getTFName(druidDT) else tfName
     this.copy(outputAttributeMap = outputAttributeMap + (name -> (e, originalDT, druidDT, tf)))
+  }
+
+  def addAlias(alias: String, col: String) = {
+    val colName = projectionAliasMap.getOrElse(col, col)
+    this.copy(projectionAliasMap = projectionAliasMap + (alias -> colName))
   }
 
   def avgExpression(e: Expression, sumAlias: String, countAlias: String) = {

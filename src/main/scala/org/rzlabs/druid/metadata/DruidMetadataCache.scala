@@ -55,8 +55,30 @@ trait DruidRelationInfoCache {
         druidColumn.dataType == DruidDataType.ThetaSketch
     }
 
+    //val normalColumns: Map[String, DruidRelationColumn] = columns.map {
+    //  case (columnName, druidColumn) if !isApproxMetric(druidColumn) =>
+    //    val ci = userSpecifiedColumnInfos.find(_.column == columnName).getOrElse(null)
+    //    val druidRelationColumn = if (ci != null) {
+    //      val hllMetric = getDruidMetric(ci.hllMetric)
+    //      val sketchMetric = getDruidMetric(ci.sketchMetric)
+    //      DruidRelationColumn(columnName, Some(druidColumn), hllMetric, sketchMetric)
+    //    } else {
+    //      DruidRelationColumn(columnName, Some(druidColumn))
+    //    }
+    //    val cardinality: Option[Long] = if (druidColumn.isInstanceOf[DruidTimeDimension]) {
+    //      Some(druidColumn.asInstanceOf[DruidTimeDimension].cardinality)
+    //    } else if (druidColumn.isInstanceOf[DruidDimension]) {
+    //      Some(druidColumn.asInstanceOf[DruidDimension].cardinality)
+    //    } else if (druidColumn.isInstanceOf[DruidMetric]) {
+    //      Some(druidColumn.asInstanceOf[DruidMetric].cardinality)
+    //    } else None
+    //    columnName -> druidRelationColumn.copy(cardinalityEstimate = cardinality)
+    //  // Approx metric information should be carried by related origin column.
+    //  case _ => (null, null)
+    //}.filterNot(_._1 == null)
+
     val normalColumns: Map[String, DruidRelationColumn] = columns.map {
-      case (columnName, druidColumn) if !isApproxMetric(druidColumn) =>
+      case (columnName, druidColumn) =>
         val ci = userSpecifiedColumnInfos.find(_.column == columnName).getOrElse(null)
         val druidRelationColumn = if (ci != null) {
           val hllMetric = getDruidMetric(ci.hllMetric)
@@ -73,9 +95,7 @@ trait DruidRelationInfoCache {
           Some(druidColumn.asInstanceOf[DruidMetric].cardinality)
         } else None
         columnName -> druidRelationColumn.copy(cardinalityEstimate = cardinality)
-      // Approx metric information should be carried by related origin column.
-      case _ => (null, null)
-    }.filterNot(_._1 == null)
+    }
 
     // For the dimension user specified but not indexed in Druid datasource.
     val notIndexedColumns: Map[String, DruidRelationColumn] = userSpecifiedColumnInfos.collect {
@@ -110,7 +130,7 @@ trait DruidRelationInfoCache {
     } else if (timeDimensionCol != null) {
       timeDimensionCol
     } else {
-      throw new DruidDataSourceException("The datasource time dimension should be specified.")
+      DruidDataSource.INNER_TIME_COLUMN_NAME
     }
     DruidRelationInfo(name, timeDimCol, druidDS, columnInfos, options)
   }

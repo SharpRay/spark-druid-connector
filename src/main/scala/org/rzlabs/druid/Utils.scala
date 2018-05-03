@@ -33,4 +33,15 @@ object Utils extends MyLogging {
   def filterSomes[A](a: List[Option[A]]): List[Option[A]] = {
     a.filter { case Some(x) => true; case None => false }
   }
+
+  /**
+   * transform List[Option] tp Option[List]
+   * @param a
+   * @tparam A
+   * @return
+   */
+  def sequence[A](a: List[Option[A]]): Option[List[A]] = a match {
+    case Nil => Some(Nil)
+    case head :: tail => head.flatMap (h => sequence(tail).map(h :: _))
+  }
 }

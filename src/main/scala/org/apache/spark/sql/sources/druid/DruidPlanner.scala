@@ -9,8 +9,8 @@ class DruidPlanner(val druidOptions: DruidOptions) extends DruidTransforms
   with AggregateTransform with ProjectFilterTransform {
 
   val transforms: Seq[DruidTransform] = Seq(
-    aggregateTransform.debug("aggregate")
-
+    aggregateTransform.debug("aggregate"),
+    druidRelationTransform.debug("druidRelationTransform")
   )
 
   def plan(dqb: Seq[DruidQueryBuilder], plan: LogicalPlan): Seq[DruidQueryBuilder] = {

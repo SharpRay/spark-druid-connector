@@ -1,7 +1,9 @@
 package org.rzlabs.druid
 
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.types._
+import org.joda.time.DateTime
 import org.rzlabs.druid.metadata.DruidRelationColumn
 
 /**
@@ -161,6 +163,7 @@ object SparkNativeTimeElementExtractor {
 
   val DATE_FORMAT = "YYYY-MM-dd"
   val TIMESTAMP_FORMAT = "YYYY-MM-dd HH:mm:ss"
+  val TIMESTAMP_DATEZERO_FORMAT = "YYYY-MM-dd 00:00:00"
 
   val YEAR_FORMAT = "YYYY"
   val MONTH_FORMAT = "MM"
@@ -172,3 +175,80 @@ object SparkNativeTimeElementExtractor {
   val MINUTE_FORMAT = "mm"
   val SECOND_FORMAT = "ss"
 }
+
+object IntervalConditionType extends Enumeration {
+  val GT = Value
+  val GTE = Value
+  val LT = Value
+  val LTE = Value
+}
+
+case class IntervalCondition(`type`: IntervalConditionType.Value, dt: DateTime)
+
+class SparkIntervalConditionExtractor(dqb: DruidQueryBuilder) {
+
+  import SparkNativeTimeElementExtractor._
+
+  val timeExtractor = new SparkNativeTimeElementExtractor()(dqb)
+
+  private def literalToDateTime(value: Any, dataType: DataType): DateTime = dataType match {
+    case TimestampType =>
+      // Timestamp Literal's value accurate to micro second
+      new DateTime(value.toString.toLong / 1000)
+    case DateType =>
+      new DateTime(DateTimeUtils.toJavaDate(value.toString.toInt))
+    case StringType => new DateTime(value.toString)
+  }
+
+  private object DateTimeLiteralType {
+    def unapply(dt: DataType): Option[DataType] = dt match {
+      case StringType | DateType | TimestampType => Some(dt)
+      case _ => None
+    }
+  }
+
+  def unapply(e: Expression): Option[IntervalCondition] = e match {
+    case LessThan(timeExtractor(dtGrp), Literal(value, DateTimeLiteralType(dt)))
+      if dtGrp.druidColumn.name == dqb.druidRelationInfo.timeDimensionCol &&
+        (dtGrp.formatToApply == TIMESTAMP_FORMAT ||
+          dtGrp.formatToApply == TIMESTAMP_DATEZERO_FORMAT) =>
+      Some(IntervalCondition(IntervalConditionType.LT, literalToDateTime(value, dt)))
+    case LessThan(Literal(value, DateTimeLiteralType(dt)), timeExtractor(dtGrp))
+      if dtGrp.druidColumn.name == dqb.druidRelationInfo.timeDimensionCol &&
+        (dtGrp.formatToApply == TIMESTAMP_FORMAT ||
+          dtGrp.formatToApply == TIMESTAMP_DATEZERO_FORMAT) =>
+      Some(IntervalCondition(IntervalConditionType.GT, literalToDateTime(value, dt)))
+    case LessThanOrEqual(timeExtractor(dtGrp), Literal(value, DateTimeLiteralType(dt)))
+      if dtGrp.druidColumn.name == dqb.druidRelationInfo.timeDimensionCol &&
+        (dtGrp.formatToApply == TIMESTAMP_FORMAT ||
+          dtGrp.formatToApply == TIMESTAMP_DATEZERO_FORMAT) =>
+      Some(IntervalCondition(IntervalConditionType.LTE, literalToDateTime(value, dt)))
+    case LessThanOrEqual(Literal(value, DateTimeLiteralType(dt)), timeExtractor(dtGrp))
+      if dtGrp.druidColumn.name == dqb.druidRelationInfo.timeDimensionCol &&
+        (dtGrp.formatToApply == TIMESTAMP_FORMAT ||
+          dtGrp.formatToApply == TIMESTAMP_DATEZERO_FORMAT) =>
+      Some(IntervalCondition(IntervalConditionType.GTE, literalToDateTime(value, dt)))
+    case GreaterThan(timeExtractor(dtGrp), Literal(value, DateTimeLiteralType(dt)))
+      if dtGrp.druidColumn.name == dqb.druidRelationInfo.timeDimensionCol &&
+        (dtGrp.formatToApply == TIMESTAMP_FORMAT ||
+          dtGrp.formatToApply == TIMESTAMP_DATEZERO_FORMAT) =>
+      Some(IntervalCondition(IntervalConditionType.GT, literalToDateTime(value, dt)))
+    case GreaterThan(Literal(value, DateTimeLiteralType(dt)), timeExtractor(dtGrp))
+      if dtGrp.druidColumn.name == dqb.druidRelationInfo.timeDimensionCol &&
+        (dtGrp.formatToApply == TIMESTAMP_FORMAT ||
+          dtGrp.formatToApply == TIMESTAMP_DATEZERO_FORMAT) =>
+      Some(IntervalCondition(IntervalConditionType.LT, literalToDateTime(value, dt)))
+    case GreaterThanOrEqual(timeExtractor(dtGrp), Literal(value, DateTimeLiteralType(dt)))
+      if dtGrp.druidColumn.name == dqb.druidRelationInfo.timeDimensionCol &&
+        (dtGrp.formatToApply == TIMESTAMP_FORMAT ||
+          dtGrp.formatToApply == TIMESTAMP_DATEZERO_FORMAT) =>
+      Some(IntervalCondition(IntervalConditionType.GTE, literalToDateTime(value, dt)))
+    case GreaterThanOrEqual(Literal(value, DateTimeLiteralType(dt)), timeExtractor(dtGrp))
+      if dtGrp.druidColumn.name == dqb.druidRelationInfo.timeDimensionCol &&
+        (dtGrp.formatToApply == TIMESTAMP_FORMAT ||
+          dtGrp.formatToApply == TIMESTAMP_DATEZERO_FORMAT) =>
+      Some(IntervalCondition(IntervalConditionType.LTE, literalToDateTime(value, dt)))
+    case _ => None
+  }
+}
+

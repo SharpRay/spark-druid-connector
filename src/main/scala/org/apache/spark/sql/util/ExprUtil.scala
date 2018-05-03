@@ -8,7 +8,8 @@ object ExprUtil {
 
   /**
    * If any input col/ref is null then expression will evaluate to null
-   * and if no input col/ref is null then expression won't evaluate to null
+   * and if no input col/ref is null then expression won't evaluate to null.
+   *
    * @param e Expression that neeeds to be checked
    * @return
    */
@@ -43,7 +44,13 @@ object ExprUtil {
 
   def simplifyConjPred(dqb: DruidQueryBuilder, filters: Seq[Expression]):
   (Seq[Expression], DruidQueryBuilder) = {
-
+    var newFilters = Seq[Expression]()
+    filters.foreach { filter =>
+      for (nf <- simplifyPred(dqb, filter)) {
+        newFilters = newFilters :+ nf
+      }
+    }
+    (newFilters, dqb)
   }
 
   def simplifyPred(dqb: DruidQueryBuilder, filter: Expression): Option[Expression] = filter match {
@@ -73,7 +80,7 @@ object ExprUtil {
             // will translate to JavascriptExtractionFunctionSpec.
             // Concat(a, b) will generate And(IsNotNull(a), IsNotNull(b)) here, and
             // Concat(a, b) will not push down to Druid because there's no AggregateSpec
-            // with more than 1 input dimension (Just select spec exist).
+            // with more than 1 input dimension (Just select spec generated).
             val nullableAttrRefs = nullableAttributes(dqb, se.references)
             nullableAttrRefs.foldLeft(Option.empty[Expression]) {
               (le, ar) => if (le.isEmpty) {
@@ -84,6 +91,18 @@ object ExprUtil {
             }
           } else Some(se) // no IsNotNull predicates generated.
         } else None // Literal(true) because it's not nullable.
+
+      case fe @ IsNull(ce) =>
+        if (ce.nullable) {
+          if (nullPreserving(ce)) {
+            val nullableAttrRefs = nullableAttributes(dqb, ce.references)
+            if (nullableAttrRefs.isEmpty) {
+              Some(alwaysFalseExpr)
+            } else Some(fe)
+          } else Some(alwaysFalseExpr) // not null preserving expr means any input won't result null.
+        } else Some(alwaysFalseExpr) // IsNull(not nullable expr) always false
+
+      case _ => Some(e)
     }
 
 
@@ -123,8 +142,8 @@ object ExprUtil {
   }
 
   private[this] object SimplifyCast {
-    def unapply(e: Expression): Option[Expression] = {
-      case Cast(ie @ Cast(_, _), dt) =>
+    def unapply(e: Expression): Option[Expression] = e match {
+      case Cast(Cast(_, _), dt) =>
         val c = simplifyCast(e, dt)
         if (c == e) None else Some(c)
       case _ => None
@@ -141,10 +160,20 @@ object ExprUtil {
    * @param odt
    * @return
    */
-  def simplifyCast(oe: Expression, odt: DataType) = oe match {
+  def simplifyCast(oe: Expression, odt: DataType): Expression = oe match {
     case Cast(ie, idt) if odt.isInstanceOf[NumericType] &&
       (idt.isInstanceOf[DoubleType] || idt.isInstanceOf[FloatType] ||
         idt.isInstanceOf[DecimalType]) => Cast(ie, odt)
     case _ => oe
   }
+
+  def and(exprs: Seq[Expression]): Option[Expression] = exprs.size match {
+    case 0 => None
+    case 1 => exprs.headOption
+    case _ => Some(exprs.foldLeft[Expression](null) { (le, e) =>
+      if (le == null) e else And(le, e)
+    })
+  }
+
+  private val alwaysFalseExpr = EqualTo(Literal(1), Literal(2))
 }

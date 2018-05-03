@@ -50,7 +50,7 @@ case class JSCast(from: JSExpr, toDT: DataType, ctx: JSCodeGenerator) {
   }
 
   private[this] def castToStringCode: Option[JSExpr] = from.fnDT match {
-    case LongType if from.timeDim =>
+    case TimestampType if from.timeDim =>
       // time dimension
       nullSafeCastToString(dtToStrCode(longToISODtCode(from.getRef, ctx.dateTimeCtx)))
     case BooleanType | ShortType | IntegerType | LongType | FloatType

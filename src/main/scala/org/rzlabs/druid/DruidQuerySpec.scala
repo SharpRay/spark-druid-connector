@@ -403,16 +403,16 @@ case class SelectorFilterSpec(`type`: String,
  * @param dimensions The two dimensions to be compared.
  */
 case class ColumnComparisonFilterSpec(`type`: String,
-                                      dimensions: (String, String),
+                                      dimensions: List[String],
                                       extractionFn: ExtractionFunctionSpec
                                      ) extends FilterSpec {
 
-  def this(dimensions: (String, String),
+  def this(dimensions: List[String],
            extractionFn: ExtractionFunctionSpec) = {
     this("columnComparison", dimensions, extractionFn)
   }
 
-  def this(dimensions: (String, String)) = {
+  def this(dimensions: List[String]) = {
     this(dimensions, null)
   }
 }
@@ -442,12 +442,17 @@ case class RegularExpressionFilterSpec(`type`: String,
 
 /**
  * Logical expressions filter.
- * @param `type` This string should be "and", "or" or "not".
+ * @param `type` This string should be "and", "or".
  * @param fields The [[FilterSpec]] list.
  */
 case class LogicalExpressionFilterSpec(`type`: String,
                                        fields: List[FilterSpec]
                                       ) extends FilterSpec
+
+case class NotFilterSpec(`type`: String, field: FilterSpec) extends FilterSpec {
+
+  def this(field: FilterSpec) = this("not", field)
+}
 
 /**
  * The javascript filter matches a dimension against the specified Javascript

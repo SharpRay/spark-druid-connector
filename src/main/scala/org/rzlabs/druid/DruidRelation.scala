@@ -4,7 +4,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
-import org.apache.spark.sql.types.{StringType, StructField, StructType}
+import org.apache.spark.sql.types._
 import org.rzlabs.druid.metadata.{DruidRelationColumn, DruidRelationInfo}
 
 import scala.collection.mutable.ArrayBuffer
@@ -24,7 +24,7 @@ case class DruidRelation(val info: DruidRelationInfo)(
         val (sparkType, isDimension) = relationColumn.druidColumn match {
           case Some(dc) =>
             (DruidDataType.sparkDataType(dc.dataType), dc.isDimension())
-          case None => // Some hll metric's orgin column
+          case None => // Some hll metric's origin column may not be indexed
             if (relationColumn.hllMetric.isEmpty &&
               relationColumn.sketchMetric.isEmpty) {
               throw new DruidDataSourceException(s"Illegal column $relationColumn")
@@ -32,7 +32,8 @@ case class DruidRelation(val info: DruidRelationInfo)(
             (StringType, true)
         }
         if (columnName == DruidDataSource.INNER_TIME_COLUMN_NAME) {
-          timeField += StructField(info.timeDimensionCol, sparkType)
+          // Here specifies time dimension's spark data type as TimestampType.
+          timeField += StructField(info.timeDimensionCol, TimestampType)
         } else if (isDimension) {
           dimensionFields += StructField(columnName, sparkType)
         } else {

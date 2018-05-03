@@ -45,7 +45,7 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
    * Compose the js function literal.
    * @return Option[(function body, return value)]
    */
-  private[jscodegen] def fnElements: Option[(String, String)] = {
+  def fnElements: Option[(String, String)] = {
     for (je <- genExprCode(e) if inParams.nonEmpty; // must have a column at least
          rje <- JSCast(je, retType, this).castCode) yield {
       (
