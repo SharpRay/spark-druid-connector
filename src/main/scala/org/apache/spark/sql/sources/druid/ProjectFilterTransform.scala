@@ -223,6 +223,6 @@ trait ProjectFilterTransform {
       val dqb: Option[DruidQueryBuilder] = Some(DruidQueryBuilder(info))
       val (newFilters, dqb1) = ExprUtil.simplifyConjPred(dqb.get, filters)
       translateProjectFilter(Some(dqb1), projectList, newFilters)
-    case _ => Seq()
+    case _ => Nil
   }
 }

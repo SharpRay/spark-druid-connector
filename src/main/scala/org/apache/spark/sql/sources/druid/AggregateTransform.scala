@@ -312,5 +312,6 @@ trait AggregateTransform {
           transformGrouping(dqb, agg, grpExprs, aggrExprs)
         }
       }
+    case _ => Nil
   }
 }
