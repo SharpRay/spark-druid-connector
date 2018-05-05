@@ -28,7 +28,7 @@ class DruidTransforms extends MyLogging {
 
       val dqb = p._1
       val lp = p._2
-      val rdqb = t(dqb, lp)
+      val rdqb = t((dqb, lp))
       if (self.druidOptions.debugTransformations) {
         logInfo(s"$transformName transform invoked:\n" +
           s"Input DruidQueryBuilders: $dqb\n" +
