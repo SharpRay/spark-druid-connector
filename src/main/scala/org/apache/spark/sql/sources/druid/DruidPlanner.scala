@@ -1,11 +1,12 @@
 package org.apache.spark.sql.sources.druid
 
+import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.rzlabs.druid.DruidQueryBuilder
 import org.rzlabs.druid.client.ConnectionManager
 import org.rzlabs.druid.metadata.DruidOptions
 
-class DruidPlanner(val druidOptions: DruidOptions) extends DruidTransforms
+class DruidPlanner(val sqlContext: SQLContext, val druidOptions: DruidOptions) extends DruidTransforms
   with AggregateTransform with ProjectFilterTransform {
 
   val transforms: Seq[DruidTransform] = Seq(
@@ -20,8 +21,8 @@ class DruidPlanner(val druidOptions: DruidOptions) extends DruidTransforms
 
 object DruidPlanner {
 
-  def apply(druidOptions: DruidOptions) = {
-    val planner = new DruidPlanner(druidOptions)
+  def apply(sqlContext: SQLContext, druidOptions: DruidOptions) = {
+    val planner = new DruidPlanner(sqlContext, druidOptions)
     ConnectionManager.init(druidOptions)
     planner
   }

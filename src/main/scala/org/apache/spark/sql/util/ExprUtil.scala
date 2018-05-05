@@ -1,6 +1,7 @@
 package org.apache.spark.sql.util
 
 import org.apache.spark.sql.catalyst.expressions._
+import org.apache.spark.sql.catalyst.trees.CurrentOrigin
 import org.apache.spark.sql.types._
 import org.rzlabs.druid.DruidQueryBuilder
 
@@ -173,6 +174,26 @@ object ExprUtil {
     case _ => Some(exprs.foldLeft[Expression](null) { (le, e) =>
       if (le == null) e else And(le, e)
     })
+  }
+
+  /**
+   * This is different from transformDown because if rule transforms an Expression,
+   * we don't try to apply any more transformations.
+   * @param e
+   * @param rule
+   * @return
+   */
+  def transformReplace(e: Expression,
+                       rule: PartialFunction[Expression, Expression]): Expression = {
+    val afterRule = CurrentOrigin.withOrigin(e.origin) {
+      rule.applyOrElse(e, identity[Expression])
+    }
+
+    if (e.fastEquals(afterRule)) {
+      e.transformDown(rule)
+    } else {
+      afterRule
+    }
   }
 
   private val alwaysFalseExpr = EqualTo(Literal(1), Literal(2))

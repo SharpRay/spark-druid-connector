@@ -13,6 +13,8 @@ case class DruidOptions(zkHost: String,
                         loadMetadataFromAllSegments: Boolean,
                         debugTransformations: Boolean,
                         timeZoneId: String,
+                        useV2GroupByEngine: Boolean,
+                        useSmile: Boolean,
                         queryGranularity: DruidQueryGranularity)
 
 case class DruidRelationName(zkHost: String, druidDataSource: String)

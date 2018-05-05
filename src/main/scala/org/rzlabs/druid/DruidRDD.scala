@@ -1,6 +1,23 @@
 package org.rzlabs.druid
 
+import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.types._
+import org.rzlabs.druid.metadata.DruidRelationInfo
+
+class DruidRDD(sqlContext: SQLContext,
+               drInfo: DruidRelationInfo,
+               val druidQuery: DruidQuery
+              ) extends RDD[InternalRow](sqlContext.sparkContext, Nil) {
+
+  override def getPartitions: Array[Partition] = Array()
+
+  override def compute(split: Partition, context: TaskContext): Iterator[InternalRow] = null
+
+}
+
 
 object DruidValTransform {
 
@@ -13,5 +30,7 @@ object DruidValTransform {
     case FloatType => "toFloat"
     case _ => ""
   }
+
+
 }
 

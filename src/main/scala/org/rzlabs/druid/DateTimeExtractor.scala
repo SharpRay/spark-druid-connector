@@ -208,6 +208,7 @@ class SparkIntervalConditionExtractor(dqb: DruidQueryBuilder) {
   }
 
   def unapply(e: Expression): Option[IntervalCondition] = e match {
+    // TODO: Or(le, re) don't us javascript function
     case LessThan(timeExtractor(dtGrp), Literal(value, DateTimeLiteralType(dt)))
       if dtGrp.druidColumn.name == dqb.druidRelationInfo.timeDimensionCol &&
         (dtGrp.formatToApply == TIMESTAMP_FORMAT ||

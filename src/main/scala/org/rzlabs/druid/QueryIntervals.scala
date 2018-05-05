@@ -13,6 +13,8 @@ case class QueryIntervals(druidRelationInfo: DruidRelationInfo,
     indexIntervals.find(_.contains(dt))
   }
 
+  def get: List[Interval] = if (intervals.isEmpty) indexIntervals else intervals
+
   /**
    * - if this is the first queryInterval, add it.
    * - if the new Interval overlaps with the current QueryInterval set interval to the overlap.

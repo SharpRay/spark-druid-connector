@@ -61,8 +61,14 @@ class DefaultSource extends RelationProvider with MyLogging {
 
     val timeZoneId: String = parameters.getOrElse(TIME_ZONE_ID, DEFAULT_TIME_ZONE_ID)
 
+    val useV2GroupByEngine = parameters.getOrElse(USE_V2_GROUPBY_ENGINE,
+      DEFAULT_USE_V2_GROUPBY_ENGINE).toBoolean
+
+    val useSmile = parameters.getOrElse(USE_SMILE, DEFAULT_USE_SMILE).toBoolean
+
     val queryGranularity = DruidQueryGranularity(
       parameters.getOrElse(QUERY_GRANULARITY, DEFAULT_QUERY_GRANULARITY))
+
 
     val druidOptions = DruidOptions(
       zkHost,
@@ -75,6 +81,8 @@ class DefaultSource extends RelationProvider with MyLogging {
       loadMetadataFromAllSegments,
       debugTransformations,
       timeZoneId,
+      useV2GroupByEngine,
+      useSmile,
       queryGranularity
     )
 
@@ -84,7 +92,7 @@ class DefaultSource extends RelationProvider with MyLogging {
         hyperUniqueColumnInfos ++ sketchColumnInfos,
         druidOptions)
 
-    val druidRelation = DruidRelation(druidRelationInfo)(sqlContext)
+    val druidRelation = DruidRelation(druidRelationInfo, None)(sqlContext)
 
     addPhysicalRules(sqlContext, druidOptions)
 
@@ -116,7 +124,8 @@ class DefaultSource extends RelationProvider with MyLogging {
   private def addPhysicalRules(sqlContext: SQLContext, druidOptions: DruidOptions) = {
     rulesLock.synchronized {
       if (!physicalRulesAdded) {
-        sqlContext.sparkSession.experimental.extraStrategies ++= DruidBaseModule.physicalRules(druidOptions)
+        sqlContext.sparkSession.experimental.extraStrategies ++=
+          DruidBaseModule.physicalRules(sqlContext, druidOptions)
         physicalRulesAdded = true
       }
     }
@@ -192,5 +201,11 @@ object DefaultSource {
 
   val TIME_ZONE_ID = "timeZoneId"
   val DEFAULT_TIME_ZONE_ID= "UTC"
+
+  val USE_V2_GROUPBY_ENGINE = "useV2GroupByEngine"
+  val DEFAULT_USE_V2_GROUPBY_ENGINE = "false"
+
+  val USE_SMILE = "useSmile"
+  val DEFAULT_USE_SMILE = "true"
 
 }

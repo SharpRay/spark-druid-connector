@@ -1,17 +1,150 @@
 package org.rzlabs.druid
 
+import java.io.InputStream
 import java.util.Locale
 
+import com.fasterxml.jackson.annotation._
+import org.apache.spark.sql.sources.druid.{CloseableIterator, DruidQueryResultIterator}
 import org.apache.spark.sql.types._
 import org.joda.time._
+import org.rzlabs.druid.client.{DruidClient, DruidQueryServerClient, ResultRow}
+import org.rzlabs.druid.metadata.DruidRelationInfo
+
+case class QuerySpecContext(var queryId: String,
+                            timeout: Option[Long] = None,
+                            priority: Option[Int] = None,
+                            useCache: Option[Boolean] = None,
+                            populateCache: Option[Boolean] = None,
+                            bySegment: Option[Boolean] = None,
+                            chunkPeriod: Option[String] = None,
+                            minTopNThreshold: Option[Int] = None,
+                            maxIntermediateRows: Option[Long] = None,
+                            groupByIsSingleThreaded: Option[Boolean] = None,
+                            var groupByStrategy: Option[String] = None
+                           )
+
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "queryType")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[GroupByQuerySpec], name = "groupBy")
+))
+sealed trait QuerySpec extends Product {
+
+  val queryType: String
+  val dataSource: String
+
+  def intervalList: List[String]
+  def setIntervals(ins: List[Interval]): QuerySpec
+
+  def dimensions: List[DimensionSpec] = Nil
+
+  def filter: Option[FilterSpec]
+  def setFilterSpec(fs: FilterSpec): QuerySpec
+
+  def context: Option[QuerySpecContext]
+
+  /**
+   * @param useSmile use smile binary json format or not.
+   * @param is The response content.
+   * @param druidQueryConn Druid query client.
+   * @param onDone The function called when query finished.
+   * @param fromList From `InputStream`(streaming manner) or
+   *                 `List`(non streaming manner).
+   *                 Default is false (streaming).
+   * @return The iterator of specific `ResultRow`.
+   */
+  def apply(useSmile: Boolean,
+            is: InputStream,
+            druidQueryConn: DruidClient,
+            onDone: => Unit = (),
+            fromList: Boolean = false): CloseableIterator[ResultRow]
+
+  def schemaFromQuerySepc(drInfo: DruidRelationInfo): StructType
+
+  def executeQuery(queryClient: DruidQueryServerClient): CloseableIterator[ResultRow] = {
+    queryClient.executeQueryAsStream(this)
+  }
+
+  def mapSparkColNameToDruidColName(drInfo: DruidRelationInfo):Map[String, String] = Map()
+
+}
+
+abstract class AggrQuerySpec extends QuerySpec {
+
+  override def dimensions: List[DimensionSpec] = Nil
+  def aggregations: List[AggregationSpec] = Nil
+  def postAggregations: Option[List[PostAggregationSpec]] = None
+
+  override def schemaFromQuerySepc(drInfo: DruidRelationInfo): StructType = {
+    val fields: List[StructField] = dimensions.map { dspec =>
+      new StructField(dspec.dimension, dspec.sparkDataType(drInfo.druidDataSource))
+    } ++ aggregations.map { aspec =>
+      new StructField(aspec.name, aspec.sparkDataType(drInfo.druidDataSource))
+    } ++ postAggregations.getOrElse(Nil).map { pspec =>
+      new StructField(pspec.name, pspec.sparkDataType(drInfo.druidDataSource))
+    }
+    StructType(fields)
+  }
+
+  override def apply(useSmile: Boolean,
+                     is: InputStream,
+                     druidQueryConn: DruidClient,
+                     onDone: => Unit = (),
+                     fromList: Boolean = false): CloseableIterator[ResultRow] = {
+    DruidQueryResultIterator(useSmile, is, onDone, fromList)
+  }
+}
+
+case class GroupByQuerySpec(queryType: String,
+                            dataSource: String,
+                            override val dimensions: List[DimensionSpec],
+                            limitSpec: Option[LimitSpec],
+                            having: Option[HavingSpec],
+                            granularity: GranularitySpec,
+                            filter: Option[FilterSpec],
+                            override val aggregations: List[AggregationSpec],
+                            override val postAggregations: Option[List[PostAggregationSpec]],
+                            val intervals: List[String],
+                            context: Option[QuerySpecContext]
+                           ) extends AggrQuerySpec {
+
+  def this(dataSource: String,
+           dimensionSpecs: List[DimensionSpec],
+           limitSpec: Option[LimitSpec],
+           havingSpec: Option[HavingSpec],
+           queryGranularity: GranularitySpec,
+           filterSpec: Option[FilterSpec],
+           aggregationSpecs: List[AggregationSpec],
+           postAggregationSpecs: Option[List[PostAggregationSpec]],
+           intervalList: List[String],
+           context: Option[QuerySpecContext]) = this("groupBy", dataSource, dimensionSpecs, limitSpec,
+              havingSpec, queryGranularity, filterSpec, aggregationSpecs,
+              postAggregationSpecs, intervalList, context)
+
+  override def setIntervals(ins: List[Interval]): QuerySpec = {
+    this.copy(intervals = ins.map(_.toString))
+  }
+
+  override def intervalList: List[String] = intervals
+
+  override def setFilterSpec(fs: FilterSpec): QuerySpec = {
+    this.copy(filter = Some(fs))
+  }
+}
 
 /**
  * As defined in [[http://druid.io/docs/latest/querying/dimensionspecs.html]]
  */
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[DefaultDimensionSpec], name = "default"),
+  new JsonSubTypes.Type(value = classOf[ExtractionDimensionSpec], name = "extraction")
+))
 sealed trait DimensionSpec {
   val `type`: String
+  val dimension: String
+  val outputName: String
 
-  def sparkDataType(druidDataSource: DruidDataSource)(implicit dimension: String): DataType = {
+  def sparkDataType(druidDataSource: DruidDataSource): DataType = {
     val column: DruidColumn = druidDataSource.columns.getOrElse(dimension,
       throw new DruidDataSourceException(s"Dimension '$dimension' " +
         s"is not existence in DimensionSpec.")
@@ -110,6 +243,8 @@ case class ExtractionDimensionSpec(`type`: String,
  */
 sealed trait FilteredDimensionSpec extends DimensionSpec {
   val delegate: DimensionSpec
+  val dimension: String = null
+  val outputName: String = null
 }
 
 /**
@@ -206,6 +341,13 @@ case class LimitSpec(`type`: String,
  * It is essentially the equivalent of the HAVING clause in SQL.
  * The key in druid query spec is `having`.
  */
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[QueryHavingSpec], name = "filter"),
+  new JsonSubTypes.Type(value = classOf[NumericHavingSpec], name = "numeric"),
+  new JsonSubTypes.Type(value = classOf[DimensionSelectorHavingSpec], name = "dimSelector"),
+  new JsonSubTypes.Type(value = classOf[LogicalExpressionHavingSpec], name = "logical")
+))
 sealed trait HavingSpec {
   val `type`: String
 }
@@ -280,6 +422,13 @@ case class LogicalExpressionHavingSpec(`type`: String,
  *      TimeseriesQuery is currently not recommended (the system will try to generate 0 values
  *      for all milliseconds that didn't exist, which is often a lot).
  */
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[AllGranularitySpec], name = "all"),
+  new JsonSubTypes.Type(value = classOf[NoneGranularitySpec], name = "none"),
+  new JsonSubTypes.Type(value = classOf[DurationGranularitySpec], name = "duration"),
+  new JsonSubTypes.Type(value = classOf[PeriodGranularitySpec], name = "period")
+))
 sealed trait GranularitySpec {
   val `type`: String
 }
@@ -367,6 +516,20 @@ case class PeriodGranularitySpec(`type`: String,
  * computation for a query. It's essentially the equivalent of the WHERE clause in
  * SQL.
  */
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[SelectorFilterSpec], name = "selector"),
+  new JsonSubTypes.Type(value = classOf[ColumnComparisonFilterSpec], name = "columnComparison"),
+  new JsonSubTypes.Type(value = classOf[RegularExpressionFilterSpec], name = "regex"),
+  new JsonSubTypes.Type(value = classOf[LogicalExpressionFilterSpec], name = "logical"),
+  new JsonSubTypes.Type(value = classOf[JavascriptFilterSpec], name = "javascript"),
+  new JsonSubTypes.Type(value = classOf[ExtractionFilterSpec], name = "extraction"),
+  new JsonSubTypes.Type(value = classOf[SearchFilterSpec], name = "search"),
+  new JsonSubTypes.Type(value = classOf[InFilterSpec], name = "in"),
+  new JsonSubTypes.Type(value = classOf[LikeFilterSpec], name = "like"),
+  new JsonSubTypes.Type(value = classOf[BoundFilterSpec], name = "bound"),
+  new JsonSubTypes.Type(value = classOf[IntervalFilterSpec], name = "interval")
+))
 sealed trait FilterSpec {
   val `type`: String
 }
@@ -676,6 +839,22 @@ case class IntervalFilterSpec(`type`: String,
  * dimension values will be formatted in ISO-8601 format before getting passed to
  * the extraction function.
  */
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[RegularExpressionExtractionFunctionSpec], name = "regex"),
+  new JsonSubTypes.Type(value = classOf[PartialExtractionFunctionSpec], name = "partial"),
+  new JsonSubTypes.Type(value = classOf[SearchQueryExtractionFunctionSpec], name = "searchQuery"),
+  new JsonSubTypes.Type(value = classOf[SubstringExtractionFunctionSpec], name = "substring"),
+  new JsonSubTypes.Type(value = classOf[StrlenExtractionFunctionSpec], name = "strlen"),
+  new JsonSubTypes.Type(value = classOf[TimeFormatExtractionFunctionSpec], name = "timeFormat"),
+  new JsonSubTypes.Type(value = classOf[TimeParsingExtractionFunctionSpec], name = "time"),
+  new JsonSubTypes.Type(value = classOf[JavascriptExtractionFunctionSpec], name = "javascript"),
+  new JsonSubTypes.Type(value = classOf[LookupExtractionFunctionSpec], name = "lookup"),
+  new JsonSubTypes.Type(value = classOf[CascadeExtractionFunctionSpec], name = "cascade"),
+  new JsonSubTypes.Type(value = classOf[StringFormatExtractionFunctionSpec], name = "stringFormat"),
+  new JsonSubTypes.Type(value = classOf[UpperAndLowerExtractionFunctionSpec], name = "upperAndLower"),
+  new JsonSubTypes.Type(value = classOf[BucketExtractionSpec], name = "bucket")
+))
 sealed trait ExtractionFunctionSpec {
   val `type`: String
 }
@@ -1013,6 +1192,10 @@ case class BucketExtractionSpec(`type`: String,
   }
 }
 
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[MapLookupSpec], name = "map")
+))
 sealed trait LookupSpec {
   val `type`: String
 }
@@ -1038,6 +1221,12 @@ case class MapLookupSpec(`type`: String,
   def this() = this(null)
 }
 
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[ContainsSearchQuerySpec], name = "contains"),
+  new JsonSubTypes.Type(value = classOf[InsensitiveContainsSearchQuerySpec], name = "insensitive"),
+  new JsonSubTypes.Type(value = classOf[FragmentSearchQuerySpec], name = "fragment")
+))
 sealed trait SearchQuerySpec {
   val `type`: String
 }
@@ -1092,8 +1281,25 @@ case class FragmentSearchQuerySpec(`type`: String,
   }
 }
 
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[CountAggregationSpec], name = "count"),
+  new JsonSubTypes.Type(value = classOf[SumAggregationSpec], name = "sum"),
+  new JsonSubTypes.Type(value = classOf[MinAggregationSpec], name = "min"),
+  new JsonSubTypes.Type(value = classOf[MaxAggregationSpec], name = "max"),
+  new JsonSubTypes.Type(value = classOf[FirstAggregationSpec], name = "first"),
+  new JsonSubTypes.Type(value = classOf[LastAggregationSpec], name = "last"),
+  new JsonSubTypes.Type(value = classOf[JavascriptAggregationSpec], name = "javascript"),
+  new JsonSubTypes.Type(value = classOf[CardinalityAggregationSpec], name = "cardinality"),
+  new JsonSubTypes.Type(value = classOf[HyperUniqueAggregationSpec], name = "hyperUnique"),
+  new JsonSubTypes.Type(value = classOf[SketchAggregationSpec], name = "thetaSketch"),
+  new JsonSubTypes.Type(value = classOf[FilteredAggregationSpec], name = "filtered")
+))
 sealed trait AggregationSpec {
   val `type`: String
+  val name: String
+
+  def sparkDataType(druidDs: DruidDataSource): DataType
 }
 
 /**
@@ -1114,6 +1320,8 @@ case class CountAggregationSpec(`type`: String,
   def this(name: String, fieldName: String) = {
     this("count", name, fieldName)
   }
+
+  def sparkDataType(druidDs: DruidDataSource) = LongType
 }
 
 /**
@@ -1125,12 +1333,13 @@ case class CountAggregationSpec(`type`: String,
 case class SumAggregationSpec(`type`: String,
                               name: String,
                               fieldName: String
-                             ) extends AggregationSpec
+                             ) extends AggregationSpec {
 
-case class MinMaxAggregationSpec(`type`: String,
-                                 name: String,
-                                 fieldName: String
-                                ) extends AggregationSpec
+  def sparkDataType(druidDs: DruidDataSource) = `type` match {
+    case "longSum" => LongType
+    case _ => DoubleType
+  }
+}
 
 /**
  * computes the minimum of all metric values and Double.POSITIVE_INFINITY
@@ -1141,7 +1350,13 @@ case class MinMaxAggregationSpec(`type`: String,
 case class MinAggregationSpec(`type`: String,
                               name: String,
                               fieldName: String
-                             ) extends AggregationSpec
+                             ) extends AggregationSpec {
+
+  def sparkDataType(druidDs: DruidDataSource) = `type` match {
+    case "longMin" => LongType
+    case _ => DoubleType
+  }
+}
 
 /**
  * computes the minimum of all metric values and Double.NEGATIVE_INFINITY
@@ -1152,7 +1367,13 @@ case class MinAggregationSpec(`type`: String,
 case class MaxAggregationSpec(`type`: String,
                                     name: String,
                                     fieldName: String
-                                   ) extends AggregationSpec
+                                   ) extends AggregationSpec {
+
+  def sparkDataType(druidDs: DruidDataSource) = `type` match {
+    case "longMax" => LongType
+    case _ => DoubleType
+  }
+}
 
 /**
  * computes the metric value with the minimum timestamp or 0 if no row exist.
@@ -1163,7 +1384,13 @@ case class MaxAggregationSpec(`type`: String,
 case class FirstAggregationSpec(`type`: String,
                                   name: String,
                                   fieldName: String
-                                 ) extends AggregationSpec
+                                 ) extends AggregationSpec {
+
+  def sparkDataType(druidDs: DruidDataSource) = `type` match {
+    case "longFirst" => LongType
+    case _ => DoubleType
+  }
+}
 
 /**
  * computes the metric value with the maximum timestamp or 0 if no row exist.
@@ -1174,7 +1401,13 @@ case class FirstAggregationSpec(`type`: String,
 case class LastAggregationSpec(`type`: String,
                                name: String,
                                fieldName: String
-                              ) extends AggregationSpec
+                              ) extends AggregationSpec {
+
+  def sparkDataType(druidDs: DruidDataSource) = `type` match {
+    case "longLast" => LongType
+    case _ => DoubleType
+  }
+}
 
 /**
  * Computes an arbitrary Javascript function over a set of columns (both metrics
@@ -1199,6 +1432,8 @@ case class JavascriptAggregationSpec(`type`: String,
            fnCombine: String, fnReset: String) = {
     this("javascript", name, fieldNames, fnAggregate, fnCombine, fnReset)
   }
+
+  def sparkDataType(druidDs: DruidDataSource) = DoubleType
 }
 
 /**
@@ -1248,6 +1483,8 @@ case class CardinalityAggregationSpec(`type`: String,
   def this(name: String, fields: List[String]) = {
     this(name, fields, false)
   }
+
+  def sparkDataType(druidDs: DruidDataSource) = LongType
 }
 
 /**
@@ -1286,6 +1523,8 @@ case class HyperUniqueAggregationSpec(`type`: String,
   def this(name: String, fieldName: String) = {
     this(name, fieldName, false)
   }
+
+  def sparkDataType(druidDs: DruidDataSource) = LongType
 }
 
 /**
@@ -1334,6 +1573,8 @@ case class SketchAggregationSpec(`type`: String,
   def this(name: String, fieldName: String) = {
     this(name, fieldName, false)
   }
+
+  def sparkDataType(druidDs: DruidDataSource) = LongType
 }
 
 /**
@@ -1356,6 +1597,9 @@ case class FilteredAggregationSpec(`type`: String,
   def this(filter: FilterSpec, aggregator: AggregationSpec) = {
     this("filtered", filter, aggregator)
   }
+  val name: String = null
+
+  def sparkDataType(druidDs: DruidDataSource) = aggregator.sparkDataType(druidDs)
 }
 
 /**
@@ -1363,8 +1607,21 @@ case class FilteredAggregationSpec(`type`: String,
  * values as they come out of Druid. If you include a post aggregation as part of a
  * query, make sure to include all aggregations the post-aggregator requires.
  */
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "type")
+@JsonSubTypes(Array(
+  new JsonSubTypes.Type(value = classOf[ArithmeticPostAggregationSpec], name = "arithmetic"),
+  new JsonSubTypes.Type(value = classOf[FieldAccessorPostAggregationSpec], name = "fieldAccess"),
+  new JsonSubTypes.Type(value = classOf[ConstantPostAggregationSpec], name = "constant"),
+  new JsonSubTypes.Type(value = classOf[GreatestPostAggregationSpec], name = "greatest"),
+  new JsonSubTypes.Type(value = classOf[LeastPostAggregationSpec], name = "least"),
+  new JsonSubTypes.Type(value = classOf[HyperUniqueCardinalityPostAggregationSpec], name = "hyperUniqueCardinality"),
+  new JsonSubTypes.Type(value = classOf[JavascriptPostAggregationSpec], name = "javascript")
+))
 sealed trait PostAggregationSpec {
   val `type`: String
+  val name: String
+
+  def sparkDataType(druidDs: DruidDataSource): DataType
 }
 
 /**
@@ -1398,6 +1655,13 @@ case class ArithmeticPostAggregationSpec(`type`: String,
   def this(name: String, fn: String, fields: List[PostAggregationSpec]) = {
     this(name, fn, fields, null)
   }
+
+  def sparkDataType(druidDs: DruidDataSource) = {
+    fields.find(_.sparkDataType(druidDs) == DoubleType) match {
+      case Some(_) => DoubleType
+      case _ => LongType
+    }
+  }
 }
 
 /**
@@ -1415,7 +1679,10 @@ case class ArithmeticPostAggregationSpec(`type`: String,
 case class FieldAccessorPostAggregationSpec(`type`: String,
                                            name: String,
                                             fieldName: String
-                                           ) extends PostAggregationSpec
+                                           ) extends PostAggregationSpec {
+
+  def sparkDataType(druidDs: DruidDataSource) = DoubleType
+}
 
 /**
  * The constant post-aggregator always returns the specified value.
@@ -1425,7 +1692,10 @@ case class FieldAccessorPostAggregationSpec(`type`: String,
  */
 case class ConstantPostAggregationSpec(`type`: String,
                                        name: String,
-                                       value: Double)
+                                       value: Double) extends PostAggregationSpec {
+
+  def sparkDataType(druidDs: DruidDataSource) = DoubleType
+}
 
 /**
  * `doubleGreatest` and `longGreatest` computes the maximum of all fields and
@@ -1442,17 +1712,33 @@ case class ConstantPostAggregationSpec(`type`: String,
 case class GreatestPostAggregationSpec(`type`: String,
                                        name: String,
                                        fields: List[PostAggregationSpec]
-                                      ) extends PostAggregationSpec
+                                      ) extends PostAggregationSpec {
+
+  def sparkDataType(druidDs: DruidDataSource) = {
+    fields.find(_.sparkDataType(druidDs) == DoubleType) match {
+      case Some(_) => DoubleType
+      case _ => LongType
+    }
+  }
+}
 
 /**
- * @param `type` This string should be "doubleLeaset" or "longLeast".
+ * @param `type` This string should be "doubleLeast" or "longLeast".
  * @param name The output metric name.
  * @param fields The post-aggregators specified.
  */
 case class LeastPostAggregationSpec(`type`: String,
                                     name: String,
                                     fields: List[PostAggregationSpec]
-                                   ) extends PostAggregationSpec
+                                   ) extends PostAggregationSpec {
+
+  def sparkDataType(druidDs: DruidDataSource) = {
+    fields.find(_.sparkDataType(druidDs) == DoubleType) match {
+      case Some(_) => DoubleType
+      case _ => LongType
+    }
+  }
+}
 
 /**
  * Applies the provided Javascript function to the given fields. Fields are passed
@@ -1471,6 +1757,8 @@ case class JavascriptPostAggregationSpec(`type`: String,
   def this(name: String, fieldNames: List[String], function: String) = {
     this("javascript", name, fieldNames, function)
   }
+
+  def sparkDataType(druidDs: DruidDataSource) = DoubleType
 }
 
 /**
@@ -1488,4 +1776,6 @@ case class HyperUniqueCardinalityPostAggregationSpec(`type`: String,
   def this(name: String, fieldName: String) = {
     this("hyperUniqueCardinality", name, fieldName)
   }
+
+  def sparkDataType(druidDs: DruidDataSource) = LongType
 }

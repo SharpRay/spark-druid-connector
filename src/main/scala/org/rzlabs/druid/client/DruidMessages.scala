@@ -104,3 +104,14 @@ case class ServerStatus(version: String,
                         modules: List[ModuleInfo],
                         memory: ServerMemory)
 
+sealed trait ResultRow {
+  def event: Map[String, Any]
+}
+
+case class QueryResultRow(version: String, timestamp: String,
+                          event: Map[String, Any]) extends ResultRow
+
+case class SelectResuiltRow(segmentId: String, offset: Int,
+                            event: Map[String, Any]) extends ResultRow
+
+case class TopNResultRow(event: Map[String, Any]) extends ResultRow

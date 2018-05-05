@@ -13,10 +13,11 @@ import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager
 import org.apache.http.util.EntityUtils
+import org.apache.spark.sql.sources.druid.CloseableIterator
 import org.fasterxml.jackson.databind.ObjectMapper._
 import org.joda.time.{DateTime, Interval}
 import org.rzlabs.druid.metadata.DruidOptions
-import org.rzlabs.druid.{DruidDataSource, DruidDataSourceException, DruidQueryGranularity}
+import org.rzlabs.druid.{DruidDataSource, DruidDataSourceException, DruidQueryGranularity, QuerySpec}
 
 import scala.util.Try
 
@@ -207,16 +208,93 @@ abstract class DruidClient(val host: String,
     })
   }
 
+  @throws[DruidDataSourceException]
+  protected def performQuery(url: String,
+                             reqType: String => HttpRequestBase,
+                             qrySpec: QuerySpec,
+                             payload: ObjectNode,
+                             reqHeaders: Map[String, String]): CloseableIterator[ResultRow] = {
+
+    var resp: CloseableHttpResponse = null
+
+    val enterTime = System.currentTimeMillis()
+    var beforeExecTime = System.currentTimeMillis()
+    var afterExecTime = System.currentTimeMillis()
+
+    val iter: Try[CloseableIterator[ResultRow]] = for {
+      r <- Try {
+        val req: CloseableHttpClient = httpClient
+        val request: HttpRequestBase = reqType(url)
+        if (payload != null && request.isInstanceOf[HttpEntityEnclosingRequestBase]) {
+          // HttpPost
+          val input: HttpEntity = if (!useSmile) {
+            new StringEntity(jsonMapper.writeValueAsString(payload), ContentType.APPLICATION_JSON)
+          } else {
+            new ByteArrayEntity(smileMapper.writeValueAsBytes(payload), null)
+          }
+          request.asInstanceOf[HttpEntityEnclosingRequestBase].setEntity(input)
+        }
+        addHeaders(request, reqHeaders)
+        beforeExecTime = System.currentTimeMillis()
+        resp = req.execute(request)
+        afterExecTime = System.currentTimeMillis()
+        resp
+      }
+      iter <- Try {
+        val status = r.getStatusLine.getStatusCode
+        if (status >= 200 && status < 300) {
+          qrySpec(useSmile, r.getEntity.getContent, this, release(r))
+        } else {
+          throw new DruidDataSourceException(s"Unexpected response status: ${r.getStatusLine} " +
+            s"on $url for query: " +
+            s"\n ${jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(payload)}")
+        }
+      }
+    } yield iter
+
+    val afterIterBuildTime = System.currentTimeMillis()
+    log.debug(s"request $url: beforeExecTime = ${beforeExecTime - enterTime}, " +
+      s"execTime = ${afterExecTime - beforeExecTime}, " +
+      s"iterBuildTime = ${afterIterBuildTime - afterExecTime}")
+    iter.getOrElse {
+      release(resp)
+      iter.failed.get match {
+        case de: DruidDataSourceException => throw de
+        case e => throw new DruidDataSourceException("Failed in communication with Druid: ", e)
+      }
+    }
+  }
+
   protected def post(url: String,
                      payload: ObjectNode,
                      reqHeaders: Map[String, String] = null): String = {
     perform(url, postRequest _, payload, reqHeaders)
   }
 
+  def postQuery(url: String, qrySpec: QuerySpec,
+                payload: ObjectNode,
+                reqHeaders: Map[String, String] = null): CloseableIterator[ResultRow] = {
+    performQuery(url, postRequest _, qrySpec, payload, reqHeaders)
+  }
+
   protected def get(url: String,
                     payload: ObjectNode = null,
                     reqHeaders: Map[String, String] = null): String = {
     perform(url, getRequest _, payload, reqHeaders)
+  }
+
+  @throws[DruidDataSourceException]
+  def executeQuery(url: String, qrySpec: QuerySpec): List[ResultRow] = {
+    // Payload to be posted is the QuerySpec.
+    val payload: ObjectNode = jsonMapper.valueToTree(qrySpec)
+    val r = post(url, payload)
+    jsonMapper.readValue(r, new TypeReference[List[ResultRow]] {})
+  }
+
+  @throws[DruidDataSourceException]
+  def executeQueryAsStream(url: String, qrySpec: QuerySpec): CloseableIterator[ResultRow] = {
+    val payload: ObjectNode = jsonMapper.valueToTree(qrySpec)
+    postQuery(url, qrySpec, payload)
   }
 
   def timeBoundary(dataSource: String): Interval
@@ -311,6 +389,16 @@ class DruidQueryServerClient(host: String, port: Int, useSmile: Boolean = false)
   @throws[DruidDataSourceException]
   def metadata(dataSource: String, fullIndex: Boolean): DruidDataSource = {
     metadata(url, dataSource, fullIndex)
+  }
+
+  @throws[DruidDataSourceException]
+  def executeQuery(qrySpec: QuerySpec): List[ResultRow] = {
+    executeQuery(url, qrySpec)
+  }
+
+  @throws[DruidDataSourceException]
+  def executeQueryAsStream(qrySpec: QuerySpec): CloseableIterator[ResultRow] = {
+    executeQueryAsStream(url, qrySpec)
   }
 }
 
