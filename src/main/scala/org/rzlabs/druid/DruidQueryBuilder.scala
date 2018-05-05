@@ -43,6 +43,8 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
      """.stripMargin
   }
 
+  def aggregateOp(oper: Aggregate) = this.copy(aggregateOper = Some(oper))
+
   def isNonTimeDimension(name: String) = {
     druidColumn(name).map(_.isDimension(true)).getOrElse(false)
   }

@@ -110,7 +110,7 @@ trait AggregateTransform {
       (dqb, ae) => dqb.flatMap(setAggregationInfo(_, ae))
     }
 
-    dqb2
+    dqb2.map(_.aggregateOp(aggOp))
   }
 
   private def attrRefName(e: Expression): Option[String] = {
