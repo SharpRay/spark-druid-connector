@@ -378,8 +378,8 @@ class DruidQueryServerClient(host: String, port: Int, useSmile: Boolean = false)
     val minTime: java.util.List[String] = objectNode.findValuesAsText("minTime")
     if (!maxTime.isEmpty && !minTime.isEmpty) {
       new Interval(
-        new DateTime(minTime.get(0)),
-        new DateTime(maxTime.get(0)).plusMillis(1)
+        DateTime.parse(minTime.get(0)),
+        DateTime.parse(maxTime.get(0)).plusMillis(1)
       )
     } else {
       throw new DruidDataSourceException("Time boundary should include both the start time and the end time.")
