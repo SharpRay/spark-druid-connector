@@ -32,6 +32,17 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
                              hasUnpushedFilters: Boolean = false
                             ) {
 
+  override def toString = {
+    s"""
+      queryIntervals:
+        ${queryIntervals.intervals.mkString("\n")}
+      dimensions:
+        ${dimensions.mkString("\n")}
+       aggregations:
+        ${aggregations.mkString("\n")}
+     """.stripMargin
+  }
+
   def isNonTimeDimension(name: String) = {
     druidColumn(name).map(_.isDimension(true)).getOrElse(false)
   }
