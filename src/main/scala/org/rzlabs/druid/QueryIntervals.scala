@@ -58,7 +58,7 @@ case class QueryIntervals(druidRelationInfo: DruidRelationInfo,
   def ltCond(dt: DateTime): Option[QueryIntervals] = {
     indexInterval(dt).map { in =>
       val newIn = in.withEnd(dt)
-      add(in)
+      add(newIn)
     } orElse {
       outsideIndexRange(dt, IntervalConditionType.LT)
     }
