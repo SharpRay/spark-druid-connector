@@ -3,7 +3,7 @@ package org.rzlabs.druid
 import org.apache.spark.sql.catalyst.expressions._
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.types._
-import org.joda.time.DateTime
+import org.joda.time.{DateTime, DateTimeZone}
 import org.rzlabs.druid.metadata.DruidRelationColumn
 
 /**
@@ -194,10 +194,13 @@ class SparkIntervalConditionExtractor(dqb: DruidQueryBuilder) {
   private def literalToDateTime(value: Any, dataType: DataType): DateTime = dataType match {
     case TimestampType =>
       // Timestamp Literal's value accurate to micro second
-      new DateTime(value.toString.toLong / 1000)
+      new DateTime(value.toString.toLong / 1000,
+        DateTimeZone.forID(dqb.druidRelationInfo.options.timeZoneId))
     case DateType =>
-      new DateTime(DateTimeUtils.toJavaDate(value.toString.toInt))
-    case StringType => new DateTime(value.toString)
+      new DateTime(DateTimeUtils.toJavaDate(value.toString.toInt),
+        DateTimeZone.forID(dqb.druidRelationInfo.options.timeZoneId))
+    case StringType => new DateTime(value.toString,
+      DateTimeZone.forID(dqb.druidRelationInfo.options.timeZoneId))
   }
 
   private object DateTimeLiteralType {
