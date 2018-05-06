@@ -125,14 +125,17 @@ trait DruidRelationInfoCache {
     val name = DruidRelationName(options.zkHost, dataSourceName)
     val druidDS = getDataSourceInfo(name, options)
     val columnInfos = buildColumnInfos(druidDS, userSpecifiedColumnInfos)
-    val timeDimCol = if (druidDS.timestampSpec.nonEmpty) {
-      druidDS.timestampSpec.get.column
-    } else if (timeDimensionCol != null) {
-      timeDimensionCol
-    } else {
-      DruidDataSource.INNER_TIME_COLUMN_NAME
+    val timeDimCol = druidDS.timeDimensionColName(timeDimensionCol)
+    // Change the time dimension name "__time" to real time.
+    val colInfos = columnInfos.map {
+      case (colName, drCol) if colName == DruidDataSource.INNER_TIME_COLUMN_NAME =>
+        (timeDimCol, drCol.copy(column = timeDimCol,
+          druidColumn = Some(
+            drCol.druidColumn.get.asInstanceOf[DruidTimeDimension].copy(name = timeDimCol)
+          )))
+      case other => other
     }
-    DruidRelationInfo(name, timeDimCol, druidDS, columnInfos, options)
+    DruidRelationInfo(name, timeDimCol, druidDS, colInfos, options)
   }
 }
 

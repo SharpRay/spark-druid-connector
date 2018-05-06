@@ -120,6 +120,16 @@ case class DruidDataSource(name: String,
   }
 
   def metric(name: String): Option[DruidMetric] = metrics.get(name)
+
+  def timeDimensionColName(timeDimCol: String) = {
+    if (timestampSpec.nonEmpty) {
+      timestampSpec.get.column
+    } else if (timeDimCol != null) {
+      timeDimCol
+    } else {
+      DruidDataSource.INNER_TIME_COLUMN_NAME
+    }
+  }
 }
 
 object DruidDataSource {
