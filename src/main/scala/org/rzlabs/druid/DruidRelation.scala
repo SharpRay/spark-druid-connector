@@ -130,7 +130,7 @@ case class DruidRelation(val info: DruidRelationInfo, val druidQuery: Option[Dru
 
   override def toString(): String = {
     druidQuery.map { dq =>
-      s"DruidQuery: ${jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(dq)}"
+      s"DruidQuery: ${Utils.toPrettyJson(Left(dq))}"
     }.getOrElse {
       info.toString
     }

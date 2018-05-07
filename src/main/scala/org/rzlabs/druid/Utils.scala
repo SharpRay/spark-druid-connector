@@ -1,10 +1,9 @@
 package org.rzlabs.druid
 
+import com.fasterxml.jackson.databind.JsonNode
 import org.apache.spark.sql.MyLogging
 import org.joda.time.Interval
-import org.json4s.ShortTypeHints
-import org.json4s.jackson.Serialization
-import org.rzlabs.druid.metadata.DruidRelationColumnInfo
+import org.fasterxml.jackson.databind.ObjectMapper._
 
 object Utils extends MyLogging {
 
@@ -44,4 +43,11 @@ object Utils extends MyLogging {
     case Nil => Some(Nil)
     case head :: tail => head.flatMap (h => sequence(tail).map(h :: _))
   }
+
+  def toPrettyJson(obj: Either[AnyRef, JsonNode]) = {
+    jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(
+      if (obj.isLeft) obj.left else obj.right)
+  }
+
+
 }

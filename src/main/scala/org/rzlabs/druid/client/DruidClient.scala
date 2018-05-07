@@ -17,6 +17,7 @@ import org.apache.spark.sql.sources.druid.CloseableIterator
 import org.fasterxml.jackson.databind.ObjectMapper._
 import org.joda.time.{DateTime, Interval}
 import org.rzlabs.druid.metadata.DruidOptions
+import org.rzlabs.druid.Utils
 import org.rzlabs.druid.{DruidDataSource, DruidDataSourceException, DruidQueryGranularity, QuerySpec}
 
 import scala.util.Try
@@ -52,8 +53,8 @@ object ConnectionManager {
 /**
  * A mechanism to relay [[org.apache.http.concurrent.Cancellable]] resources
  * associated with the "http connection" of a "DruidClient". This is used by
- * the [[TaskCancelHandler]] to capture the association between "Spark Tasks"
- * and "Cancellable" resources.
+ * the [[org.rzlabs.druid.TaskCancelHandler]] to capture the association
+ * between "Spark Tasks" and "Cancellable" resources (connections).
  */
 trait CancellableHolder {
   def setCancellable(c: Cancellable)
@@ -247,7 +248,7 @@ abstract class DruidClient(val host: String,
         } else {
           throw new DruidDataSourceException(s"Unexpected response status: ${r.getStatusLine} " +
             s"on $url for query: " +
-            s"\n ${jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(payload)}")
+            s"\n ${Utils.toPrettyJson(Right(payload))}")
         }
       }
     } yield iter

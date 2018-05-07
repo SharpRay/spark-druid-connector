@@ -3,7 +3,7 @@ package org.apache.spark.sql.sources.druid
 import java.io.{ByteArrayInputStream, InputStream}
 
 import org.apache.spark.util.NextIterator
-import org.rzlabs.druid.client.QueryResultRow
+import org.rzlabs.druid.client.{QueryResultRow, ResultRow}
 import org.fasterxml.jackson.databind.ObjectMapper._
 import com.fasterxml.jackson.core._
 import com.fasterxml.jackson.core.`type`.TypeReference
@@ -78,4 +78,13 @@ object DruidQueryResultIterator {
       new DruidQueryResultStreamingIterator(useSmile, is, onDone)
     }
   }
+}
+
+class DummyResultIterator extends NextIterator[ResultRow] with CloseableIterator[ResultRow] {
+  override protected def getNext(): ResultRow = {
+    finished = true
+    null
+  }
+
+  override protected def close(): Unit = ()
 }
