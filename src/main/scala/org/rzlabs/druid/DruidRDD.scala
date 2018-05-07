@@ -187,6 +187,8 @@ object DruidValTransform {
       druidVal.asInstanceOf[BigInt].toLong
     } else if (druidVal.isInstanceOf[String]) {
       druidVal.asInstanceOf[String].toLong
+    } else if (druidVal.isInstanceOf[Integer]) {
+      druidVal.asInstanceOf[Integer].toLong
     } else {
       druidVal
     }
@@ -199,6 +201,8 @@ object DruidValTransform {
       druidVal.asInstanceOf[Double].longValue()
     } else if (druidVal.isInstanceOf[BigInt]) {
       druidVal.asInstanceOf[BigInt].toLong
+    } else if (druidVal.isInstanceOf[Integer]) {
+      druidVal.asInstanceOf[Integer].toLong
     } else druidVal
   }
 
@@ -213,6 +217,8 @@ object DruidValTransform {
       druidVal.asInstanceOf[BigInt].toInt
     } else if (druidVal.isInstanceOf[String]) {
       druidVal.asInstanceOf[String].toInt
+    } else if (druidVal.isInstanceOf[Integer]) {
+      druidVal.asInstanceOf[Integer].toInt
     } else druidVal
   }
 
@@ -223,6 +229,8 @@ object DruidValTransform {
       druidVal.asInstanceOf[BigInt].toLong
     } else if (druidVal.isInstanceOf[String]) {
       druidVal.asInstanceOf[String].toLong
+    } else if (druidVal.isInstanceOf[Integer]) {
+      druidVal.asInstanceOf[Integer].toLong
     } else druidVal
   }
 
@@ -233,6 +241,8 @@ object DruidValTransform {
       druidVal.asInstanceOf[BigInt].toFloat
     } else if (druidVal.isInstanceOf[String]) {
       druidVal.asInstanceOf[String].toFloat
+    } else if (druidVal.isInstanceOf[Integer]) {
+      druidVal.asInstanceOf[Integer].toFloat
     } else druidVal
   }
 
@@ -253,6 +263,8 @@ object DruidValTransform {
     case StringType if druidVal != null => UTF8String.fromString(druidVal.toString)
     case LongType if druidVal.isInstanceOf[BigInt] =>
       druidVal.asInstanceOf[BigInt].longValue()
+    case LongType if druidVal.isInstanceOf[Integer] =>
+      druidVal.asInstanceOf[Integer].longValue()
     case BinaryType if druidVal.isInstanceOf[String] =>
       Base64Variants.getDefaultVariant.decode(druidVal.asInstanceOf[String])
     case _ => druidVal
