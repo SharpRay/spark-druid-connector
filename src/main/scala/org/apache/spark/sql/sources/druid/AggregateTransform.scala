@@ -299,7 +299,9 @@ trait AggregateTransform {
       // There are more than 1 distinct aggregate expressions.
       // Because Druid cannot handle accurate distinct operation,
       // so we do not push aggregation down to Druid.
-      Nil
+      throw new DruidDataSourceException("Currently the DISTINCT operation is not permitted. " +
+        "If you submit a COUNT(DISTINCT) aggregation function, " +
+        "please use APPROX_COUNT_DISTINCT instead.")
     case (dqb, agg @ Aggregate(grpExprs, aggrExprs, child)) =>
       // There is 1 distinct aggregate expressions.
       // Because Druid cannot handle accurate distinct operation,
@@ -309,7 +311,11 @@ trait AggregateTransform {
           case ae: AggregateExpression if ae.isDistinct => true
           case _ => false
         }.isDefined
-      }) Nil else {
+      }) {
+        throw new DruidDataSourceException("Currently the DISTINCT operation is not permitted. " +
+          "If you submit a COUNT(DISTINCT) aggregation function, " +
+          "please use APPROX_COUNT_DISTINCT instead.")
+      } else {
         // There is no distinct aggregate expressions.
         // Returns Nil if plan returns Nil.
         plan(dqb, child).flatMap { dqb =>
