@@ -1,6 +1,7 @@
 package org.rzlabs.druid.metadata
 
 import org.apache.spark.sql.MyLogging
+import org.apache.spark.sql.types.TimestampType
 import org.apache.spark.util.MyThreadUtils
 import org.codehaus.jackson.annotate.JsonIgnoreProperties
 import org.rzlabs.druid._
@@ -131,7 +132,9 @@ trait DruidRelationInfoCache {
       case (colName, drCol) if colName == DruidDataSource.INNER_TIME_COLUMN_NAME =>
         (timeDimCol, drCol.copy(column = timeDimCol,
           druidColumn = Some(
-            drCol.druidColumn.get.asInstanceOf[DruidTimeDimension].copy(name = timeDimCol)
+            // The time dimension column's datatype should be StringType but not LongType
+            drCol.druidColumn.get.asInstanceOf[DruidTimeDimension].copy(name = timeDimCol,
+              dataType = DruidDataType.withName("STRING"))
           )))
       case other => other
     }
