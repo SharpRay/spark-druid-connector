@@ -86,7 +86,7 @@ class DruidRDD(sqlContext: SQLContext,
     } catch {
       case _ if cancelCallback.wasCancelTriggered && client != null =>
         resultIter = new DummyResultIterator()
-      case e => throw e
+      case e: Throwable => throw e
     } finally {
       TaskCancelHandler.clearQueryId(queryId)
     }
