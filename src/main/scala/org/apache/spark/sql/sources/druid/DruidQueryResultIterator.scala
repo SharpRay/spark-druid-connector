@@ -28,7 +28,9 @@ private class DruidQueryResultStreamingIterator(useSmile: Boolean,
       finished = true
       null
     } else if (token == JsonToken.START_OBJECT) {
-      jsonMapper.readValue(parser, new TypeReference[QueryResultRow] {})
+      val r: QueryResultRow = jsonMapper.readValue(parser, new TypeReference[QueryResultRow] {})
+      token = parser.nextToken()
+      r
     } else null
   }
 

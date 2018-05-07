@@ -104,6 +104,7 @@ case class ServerStatus(version: String,
                         modules: List[ModuleInfo],
                         memory: ServerMemory)
 
+
 sealed trait ResultRow {
   def event: Map[String, Any]
 }
