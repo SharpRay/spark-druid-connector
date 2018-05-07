@@ -33,8 +33,7 @@ trait AggregateTransform {
   private def setAggregationInfo(dqb: DruidQueryBuilder, aggrExpr: AggregateExpression) = {
 
     (dqb, aggrExpr, aggrExpr.aggregateFunction) match {
-      case (_, _, Count(Seq(Literal(1, IntegerType)))) |
-           (_, _, Count(Seq(AttributeReference("1", _, _, _)))) =>
+      case (_, _, Count(_)) =>
         Some(addCountAgg(dqb, aggrExpr))
       case (_, ae, fn) if JSAggrGenerator.jsAvgCandidate(dqb, fn) =>
         // Based on the same reason (cannot know the denominator metric)
