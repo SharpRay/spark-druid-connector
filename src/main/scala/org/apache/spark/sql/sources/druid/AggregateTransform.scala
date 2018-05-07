@@ -75,8 +75,13 @@ trait AggregateTransform {
             new TimeFormatExtractionFunctionSpec(dtGrp.formatToApply, dtGrp.timeZone.getOrElse(null))
           }
         }
+        // If the related column is time column, we should give it to the inner name "__time" to ensure
+        // correctness in querySpec.
+        val colName = if (dtGrp.druidColumn.isTimeDimension) {
+          DruidDataSource.INNER_TIME_COLUMN_NAME
+        } else dtGrp.druidColumn.name
         Some(dqb.dimensionSpec(
-          new ExtractionDimensionSpec(dtGrp.druidColumn.name, timeFmtExtractFunc, dtGrp.outputName))
+          new ExtractionDimensionSpec(colName, timeFmtExtractFunc, dtGrp.outputName))
             .outputAttribute(dtGrp.outputName, grpExpr, grpExpr.dataType,
               DruidDataType.sparkDataType(dtGrp.druidColumn.dataType)))
       case _ =>
