@@ -86,7 +86,7 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
     }
 
     def buildProjectList(dqb: DruidQueryBuilder, druidSchema: DruidSchema): Seq[NamedExpression] = {
-      buildProjectionList(dqb.aggregateOper.get.aggregateExpressions, druidSchema)
+      buildProjectionList(projectList, druidSchema)
     }
 
     buildPlan(dqb1, druidSchema, druidQuery, planner, postDruidStep _, buildProjectList _)
