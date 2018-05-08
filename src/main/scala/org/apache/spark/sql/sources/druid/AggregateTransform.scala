@@ -247,7 +247,7 @@ trait AggregateTransform {
     if (dc.hasHllMetric) {
       aggregators.map { aggrs =>
         aggrs.find(_ == dc.hllMetric.get.name).map { aggr =>
-          DruidDataType.withName(aggr._2.`type`) == DruidDataType.HyperUnique
+          DruidDataType.withName(aggr._2.`type`) == "hyperUnique"
         }.getOrElse(false)
       }.getOrElse { // Have no aggregators info got from MetadataResponse.
         // We do not retain the hyperUnique or thetaSketch metric columns.
@@ -261,7 +261,7 @@ trait AggregateTransform {
     if (dc.hasSketchMetric) {
       aggregators.map { aggrs =>
         aggrs.find(_ == dc.sketchMetric.get.name).map { aggr =>
-          DruidDataType.withName(aggr._2.`type`) == DruidDataType.ThetaSketch
+          DruidDataType.withName(aggr._2.`type`) == "thetaSketch"
         }.getOrElse(false)
       }.getOrElse { // Have no aggregators info got from MetadataResponse.
         // We do not retain the hyperUnique or thetaSketch metric columns.
@@ -280,8 +280,7 @@ trait AggregateTransform {
       val r = for (c <- aggFunc.children.headOption if aggFunc.children.size == 1;
                    columnName <- attrRefName(c);
                    dc <- dqb.druidColumn(columnName)
-                   if (dc.isDimension(true) || dc.isNotIndexedDimension)
-                     || dc.hasHllMetric) yield
+                   if dc.isDimension(true) || dc.hasHllMetric) yield
         (aggFunc, dc, outputName)
       // TODO: Sketch supports.
       r.flatMap {
