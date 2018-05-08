@@ -17,37 +17,38 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
       if (dqb.aggregateOper.isDefined) {
         aggregatePlan(dqb)
       } else {
-        selectPlan(dqb, lp)
+        //selectPlan(dqb, lp)
+        null
       }
     }
 
     plan.filter(_ != null).toList
   }
 
-  private def selectPlan(dqb: DruidQueryBuilder, lp: LogicalPlan): SparkPlan = {
-    lp match {
-      // Just in the case that Project operator as current logical plan
-      // the query spec will be generated.
-      case Project(projectList, _) => selectPlan(dqb, projectList)
-      case _ =>
-    }
-  }
-
-  private def selectPlan(dqb: DruidQueryBuilder,
-                         projectList: Seq[NamedExpression]): SparkPlan = {
-
-    val attrRefs: Seq[Attribute] = for (na <- projectList;
-                        attrRef <- na.references) yield attrRef
-
-    // remove the non-indexed dimension column.
-    val odqb = attrRefs.foldLeft[Option[DruidQueryBuilder]](Some(dqb)) {
-      (ldqb, attr) => ldqb.flatMap { dqb =>
-        dqb.druidColumn(attr.name)
-      }
-    }
-
-    null
-  }
+//  private def selectPlan(dqb: DruidQueryBuilder, lp: LogicalPlan): SparkPlan = {
+//    lp match {
+//      // Just in the case that Project operator as current logical plan
+//      // the query spec will be generated.
+//      case Project(projectList, _) => selectPlan(dqb, projectList)
+//      case _ =>
+//    }
+//  }
+//
+//  private def selectPlan(dqb: DruidQueryBuilder,
+//                         projectList: Seq[NamedExpression]): SparkPlan = {
+//
+//    val attrRefs: Seq[Attribute] = for (na <- projectList;
+//                        attrRef <- na.references) yield attrRef
+//
+//    // remove the non-indexed dimension column.
+//    val odqb = attrRefs.foldLeft[Option[DruidQueryBuilder]](Some(dqb)) {
+//      (ldqb, attr) => ldqb.flatMap { dqb =>
+//        dqb.druidColumn(attr.name)
+//      }
+//    }
+//
+//    null
+//  }
 
   private def aggregatePlan(dqb: DruidQueryBuilder): SparkPlan = {
     val druidSchema = new DruidSchema(dqb)
