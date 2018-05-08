@@ -247,7 +247,7 @@ trait AggregateTransform {
     if (dc.hasHllMetric) {
       aggregators.map { aggrs =>
         aggrs.find(_._1 == dc.hllMetric.get.name).map { aggr =>
-          DruidDataType.withName(aggr._2.`type`) == "hyperUnique"
+          DruidDataType.withName(aggr._2.`type`) == DruidDataType.HyperUnique
         }.getOrElse(false)
       }.getOrElse { // Have no aggregators info got from MetadataResponse.
         // We do not retain the hyperUnique or thetaSketch metric columns.
@@ -261,7 +261,7 @@ trait AggregateTransform {
     if (dc.hasSketchMetric) {
       aggregators.map { aggrs =>
         aggrs.find(_._1 == dc.sketchMetric.get.name).map { aggr =>
-          DruidDataType.withName(aggr._2.`type`) == "thetaSketch"
+          DruidDataType.withName(aggr._2.`type`) == DruidDataType.ThetaSketch
         }.getOrElse(false)
       }.getOrElse { // Have no aggregators info got from MetadataResponse.
         // We do not retain the hyperUnique or thetaSketch metric columns.
