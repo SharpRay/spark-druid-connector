@@ -246,7 +246,7 @@ trait AggregateTransform {
     val aggregators = dqb.druidRelationInfo.druidDataSource.aggregators
     if (dc.hasHllMetric) {
       aggregators.map { aggrs =>
-        aggrs.find(_ == dc.hllMetric.get.name).map { aggr =>
+        aggrs.find(_._1 == dc.hllMetric.get.name).map { aggr =>
           DruidDataType.withName(aggr._2.`type`) == "hyperUnique"
         }.getOrElse(false)
       }.getOrElse { // Have no aggregators info got from MetadataResponse.
