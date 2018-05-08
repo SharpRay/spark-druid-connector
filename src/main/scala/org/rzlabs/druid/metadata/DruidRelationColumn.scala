@@ -21,14 +21,28 @@ case class DruidRelationColumn(column: String,
   }
 
   def hasDirectDruidColumn = druidColumn.isDefined
+
   def hasHllMetric = hllMetric.isDefined
+
   def hasSketchMetric = sketchMetric.isDefined
+
   // TODO: Not support spatial index yet.
   def hasSpatialIndex = false
 
-  def name = druidColumnToUse.name
+  //def name = druidColumnToUse.name
+  def name = column
 
-  def dataType = if (hasSpatialIndex) DruidDataType.Float else druidColumnToUse.dataType
+  //def dataType = if (hasSpatialIndex) DruidDataType.Float else druidColumnToUse.dataType
+  def dataType = {
+    if (hasSpatialIndex) {
+      DruidDataType.Float
+    } else if (isNotIndexedDimension) {
+      // Specify non-indexed dimension type as string
+      DruidDataType.String
+    } else {
+      druidColumnToUse.dataType
+    }
+  }
 
   def size = druidColumnToUse.size
 
