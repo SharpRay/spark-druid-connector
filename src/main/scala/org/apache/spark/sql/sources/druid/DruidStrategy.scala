@@ -1,9 +1,9 @@
 package org.apache.spark.sql.sources.druid
 
-import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Project}
 import org.apache.spark.sql.execution.{DataSourceScanExec, ProjectExec, SparkPlan}
 import org.apache.spark.sql._
-import org.apache.spark.sql.catalyst.expressions.{Alias, AttributeReference, Cast, Divide, Expression, NamedExpression}
+import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeReference, Cast, Divide, Expression, NamedExpression}
 import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.util.ExprUtil
 import org.rzlabs.druid._
@@ -17,11 +17,36 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
       if (dqb.aggregateOper.isDefined) {
         aggregatePlan(dqb)
       } else {
-        null
+        selectPlan(dqb, lp)
       }
     }
 
     plan.filter(_ != null).toList
+  }
+
+  private def selectPlan(dqb: DruidQueryBuilder, lp: LogicalPlan): SparkPlan = {
+    lp match {
+      // Just in the case that Project operator as current logical plan
+      // the query spec will be generated.
+      case Project(projectList, _) => selectPlan(dqb, projectList)
+      case _ =>
+    }
+  }
+
+  private def selectPlan(dqb: DruidQueryBuilder,
+                         projectList: Seq[NamedExpression]): SparkPlan = {
+
+    val attrRefs: Seq[Attribute] = for (na <- projectList;
+                        attrRef <- na.references) yield attrRef
+
+    // remove the non-indexed dimension column.
+    val odqb = attrRefs.foldLeft[Option[DruidQueryBuilder]](Some(dqb)) {
+      (ldqb, attr) => ldqb.flatMap { dqb =>
+        dqb.druidColumn(attr.name)
+      }
+    }
+
+    null
   }
 
   private def aggregatePlan(dqb: DruidQueryBuilder): SparkPlan = {
