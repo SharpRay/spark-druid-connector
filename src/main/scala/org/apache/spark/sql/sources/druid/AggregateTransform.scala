@@ -84,6 +84,7 @@ trait AggregateTransform {
           new ExtractionDimensionSpec(colName, timeFmtExtractFunc, dtGrp.outputName))
             .outputAttribute(dtGrp.outputName, grpExpr, grpExpr.dataType,
               DruidDataType.sparkDataType(dtGrp.druidColumn.dataType)))
+      //TODO: Add primitive specification support.
       case _ =>
         val codeGen = JSCodeGenerator(dqb, grpExpr, false, false,
           dqb.druidRelationInfo.options.timeZoneId)
@@ -279,7 +280,8 @@ trait AggregateTransform {
       val r = for (c <- aggFunc.children.headOption if aggFunc.children.size == 1;
                    columnName <- attrRefName(c);
                    dc <- dqb.druidColumn(columnName)
-                   if dc.isDimension(excludeTime = true) || dc.hasHllMetric) yield
+                   if (dc.isDimension(true) || dc.isNotIndexedDimension)
+                     || dc.hasHllMetric) yield
         (aggFunc, dc, outputName)
       // TODO: Sketch supports.
       r.flatMap {

@@ -26,7 +26,7 @@ case class DruidRelationColumn(column: String,
 
   def hasSketchMetric = sketchMetric.isDefined
 
-  // TODO: Support spatial index
+  // TODO: Not support spatial index yet.
   def hasSpatialIndex = false
 
   //def name = druidColumnToUse.name
