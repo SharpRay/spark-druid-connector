@@ -33,7 +33,8 @@ class DefaultSource extends RelationProvider with MyLogging {
     val sketchColumnInfos: List[DruidRelationColumnInfo] =
       parameters.get(SKETCH_COLUMN_INFO)
         .map(jsonMapper.readValue(_,
-          new TypeReference[List[DruidRelationColumnInfo]] {})).getOrElse(List())
+          new TypeReference[List[DruidRelationColumnInfo]] {}).
+          asInstanceOf[List[DruidRelationColumnInfo]]).getOrElse(List())
 
     val zkHost: String = parameters.getOrElse(ZK_HOST, DEFAULT_ZK_HOST)
 

@@ -49,6 +49,10 @@ case class DruidQueryBuilder(druidRelationInfo: DruidRelationInfo,
     druidColumn(name).map(_.isDimension(true)).getOrElse(false)
   }
 
+  def isNotIndexedDimension(name: String) = {
+    druidColumn(name).map(_.isNotIndexedDimension).getOrElse(false)
+  }
+
   def dimensionSpec(d: DimensionSpec) = {
     this.copy(dimensions = dimensions :+ d)
 

@@ -56,16 +56,17 @@ trait AggregateTransform {
                              ): Option[DruidQueryBuilder] = {
 
     grpExpr match {
-      case AttributeReference(nm, dataType, _, _) if dqb.isNonTimeDimension(nm) =>
+      case AttributeReference(nm, dataType, _, _) =>
         val dc = dqb.druidColumn(nm).get
-        if (dc.isDimension()) {
+        val isNonTimeDim = dqb.isNonTimeDimension(nm)
+        val isNonIndexedDim = dqb.isNotIndexedDimension(nm)
+        if (isNonTimeDim || isNonIndexedDim) {
+          if (isNonIndexedDim) {
+            log.warn(s"Column '$nm' is not indexed into datasource.")
+          }
           Some(dqb.dimensionSpec(new DefaultDimensionSpec(dc.name, nm)).outputAttribute(nm,
             grpExpr, dataType, DruidDataType.sparkDataType(dc.dataType)))
-        } else if (dc.isNotIndexedDimension) {
-          throw new DruidDataSourceException(s"Column '${dc.name}' is not indexed into datasource.")
-        } else {
-          None
-        }
+        } else None
       case timeElemExtractor(dtGrp) =>
         val timeFmtExtractFunc: ExtractionFunctionSpec = {
           if (dtGrp.inputFormat.isDefined) {
