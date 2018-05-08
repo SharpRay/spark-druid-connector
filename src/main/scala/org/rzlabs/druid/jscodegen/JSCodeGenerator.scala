@@ -79,7 +79,7 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
           for (dc <- dqb.druidColumn(nm)
                if ((dc.isTimeDimension ||
                  (dc.isMetric && metricAllowed) ||
-                 dc.isDimension()) && validInParams(dc.name))
+                 (dc.isDimension() || dc.isNotIndexedDimension)) && validInParams(dc.name))
           ) yield {
             if (dc.isTimeDimension) {
               Some(new JSExpr(dc.name, LongType, true))
@@ -87,10 +87,15 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
               // This is always true because all columns is in Druid.
               Some(new JSExpr(dc.name, dataType, false))
             } else {
-              // This seems not happen ???
-              val je = new JSExpr(dc.name, DruidDataType.sparkDataType(dc.dataType), false)
-              val cje = JSCast(je, dataType, this).castCode
-              cje.map { je => JSExpr(je.fnVar, je.linesSoFar, je.getRef, dataType) }
+              // This seems not happen ??? No !!! The non-indexed dimension
+              if (dc.isNotIndexedDimension) {
+                log.warn(s"Column '$nm' is not indexed into datasource.")
+                Some(new JSExpr(dc.name, StringType, false))
+              } else {
+                val je = new JSExpr(dc.name, DruidDataType.sparkDataType(dc.dataType), false)
+                val cje = JSCast(je, dataType, this).castCode
+                cje.map { je => JSExpr(je.fnVar, je.linesSoFar, je.getRef, dataType) }
+              }
             }
           }.get // Option[Option].get = Option. This because calling castCode may returns None.
         case Literal(null, dataType) => Some(new JSExpr("null", dataType, false))
