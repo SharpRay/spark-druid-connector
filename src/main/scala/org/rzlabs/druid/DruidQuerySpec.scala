@@ -4,7 +4,7 @@ import java.io.InputStream
 import java.util.Locale
 
 import com.fasterxml.jackson.annotation._
-import org.apache.spark.sql.sources.druid.{CloseableIterator, DruidQueryResultIterator}
+import org.apache.spark.sql.sources.druid.{CloseableIterator, DruidQueryResultIterator, DruidScanResultIterator}
 import org.apache.spark.sql.types._
 import org.joda.time._
 import org.rzlabs.druid.client.{DruidClient, DruidQueryServerClient, ResultRow}
@@ -58,7 +58,7 @@ sealed trait QuerySpec extends Product {
             onDone: => Unit = (),
             fromList: Boolean = false): CloseableIterator[ResultRow]
 
-  def schemaFromQuerySepc(drInfo: DruidRelationInfo): StructType
+  def schemaFromQuerySpec(drInfo: DruidRelationInfo): StructType
 
   def executeQuery(queryClient: DruidQueryServerClient): CloseableIterator[ResultRow] = {
     queryClient.executeQueryAsStream(this)
@@ -74,7 +74,7 @@ abstract class AggrQuerySpec extends QuerySpec {
   def aggregations: List[AggregationSpec] = Nil
   def postAggregations: Option[List[PostAggregationSpec]] = None
 
-  override def schemaFromQuerySepc(drInfo: DruidRelationInfo): StructType = {
+  override def schemaFromQuerySpec(drInfo: DruidRelationInfo): StructType = {
     val fields: List[StructField] = dimensions.map { dspec =>
       new StructField(dspec.dimension, dspec.sparkDataType(drInfo.druidDataSource))
     } ++ aggregations.map { aspec =>
@@ -128,6 +128,64 @@ case class GroupByQuerySpec(queryType: String,
 
   override def setFilterSpec(fs: FilterSpec): QuerySpec = {
     this.copy(filter = Some(fs))
+  }
+}
+
+case class ScanQuerySpec(queryType: String,
+                         dataSource: String,
+                         columns: List[String],
+                         filter: Option[FilterSpec],
+                         intervals: List[String],
+                         batchSize: Option[Int] = None,
+                         limit: Option[Int] = None,
+                         context: Option[QuerySpecContext] = None) extends QuerySpec {
+  def this(dataSource: String, columns: List[String], filter: Option[FilterSpec],
+           intervals: List[String], batchSize: Option[Int],
+           limit: Option[Int], context: Option[QuerySpecContext]) = {
+    this("scan", dataSource, columns, filter, intervals, batchSize, limit, context)
+  }
+
+  override def setIntervals(ins: List[Interval]): QuerySpec = {
+    this.copy(intervals = ins.map(_.toString))
+  }
+
+  override def intervalList: List[String] = intervals
+
+  override def setFilterSpec(fs: FilterSpec): QuerySpec = {
+    this.copy(filter = Some(fs))
+  }
+
+  override def schemaFromQuerySpec(drInfo: DruidRelationInfo): StructType = {
+    val (dims, metrics) = columns.partition { col =>
+      drInfo.druidColumns.exists {
+        case (colName, dc) if col == colName &&
+          (dc.isDimension() || dc.isNotIndexedDimension) => true
+        case _ => false
+      }
+    }
+
+    val dimsWithDT = dims.map { dim =>
+      (dim, drInfo.druidColumns.find(_._1 == dim).get._2.dataType)
+    }
+    val metricsWithDT = metrics.map { metric =>
+      (metric, drInfo.druidColumns.find(_._1 == metric).get._2.dataType)
+    }
+
+    val fields = dimsWithDT.map { dim =>
+      StructField(dim._1, DruidDataType.sparkDataType(dim._2))
+    } ++ metricsWithDT.map { metric =>
+      StructField(metric._1, DruidDataType.sparkDataType(metric._2))
+    }
+
+    StructType(fields)
+  }
+
+  override def apply(useSmile: Boolean,
+                     is: InputStream,
+                     druidQueryConn: DruidClient,
+                     onDone: => Unit = (),
+                     fromList: Boolean = false): CloseableIterator[ResultRow] = {
+    DruidScanResultIterator(useSmile, is, onDone, fromList)
   }
 }
 

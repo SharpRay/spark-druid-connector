@@ -112,7 +112,9 @@ sealed trait ResultRow {
 case class QueryResultRow(version: String, timestamp: String,
                           event: Map[String, Any]) extends ResultRow
 
-case class SelectResuiltRow(segmentId: String, offset: Int,
+case class SelectResultRow(segmentId: String, offset: Int,
                             event: Map[String, Any]) extends ResultRow
 
 case class TopNResultRow(event: Map[String, Any]) extends ResultRow
+
+case class ScanResultRow(event: Map[String, Any]) extends ResultRow

@@ -41,7 +41,7 @@ case class DruidQuery(qrySpec: QuerySpec,
   }
 
   private def schemaFromQuerySpec(drInfo: DruidRelationInfo): StructType = {
-    qrySpec.schemaFromQuerySepc(drInfo)
+    qrySpec.schemaFromQuerySpec(drInfo)
   }
 
   private lazy val schemaFromOutputSpec: StructType = {

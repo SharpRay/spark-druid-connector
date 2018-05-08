@@ -18,7 +18,12 @@ private class DruidQueryResultStreamingIterator(useSmile: Boolean,
   // In NextIterator the abstract `closeIfNeeded`
   // method declared in CloseableIterator is defined.
 
-  private val factory = jsonMapper.getFactory
+  private val (mapper, factory) = if (useSmile) {
+    (smileMapper, smileMapper.getFactory)
+  } else {
+    (jsonMapper, jsonMapper.getFactory)
+  }
+
   private val parser = factory.createParser(is)
   var token = parser.nextToken()  // current token is START_ARRAY
   token = parser.nextToken()  // current token is START_OBJECT or END_ARRAY (empty result set)
@@ -28,13 +33,14 @@ private class DruidQueryResultStreamingIterator(useSmile: Boolean,
       finished = true
       null
     } else if (token == JsonToken.START_OBJECT) {
-      val r: QueryResultRow = jsonMapper.readValue(parser, new TypeReference[QueryResultRow] {})
+      val r: QueryResultRow = mapper.readValue(parser, new TypeReference[QueryResultRow] {})
       token = parser.nextToken()
       r
     } else null
   }
 
   override protected def close(): Unit = {
+    parser.close()
     onDone
   }
 }
