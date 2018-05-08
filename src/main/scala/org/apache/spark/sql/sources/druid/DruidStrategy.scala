@@ -20,7 +20,6 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
         aggregatePlan(dqb)
       } else {
         scanPlan(dqb, lp)
-        null
       }
     }
 
