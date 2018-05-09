@@ -50,6 +50,16 @@ trait AggregateTransform {
     }
   }
 
+  object PrimitiveExtractionFunction {
+    def unapply(e: Expression): Option[(String, ExtractionFunctionSpec)] = e match {
+      case Substring(AttributeReference(nm, _, _, _), Literal(pos, _), Literal(len, _)) =>
+        val index = pos.toString.toInt
+        val length = len.toString.toInt
+        Some((nm, new SubstringExtractionFunctionSpec(index, length)))
+      case _ => None
+    }
+  }
+
   private def setGroupingInfo(dqb: DruidQueryBuilder,
                               timeElemExtractor: SparkNativeTimeElementExtractor,
                               grpExpr: Expression
@@ -83,6 +93,9 @@ trait AggregateTransform {
             .outputAttribute(dtGrp.outputName, grpExpr, grpExpr.dataType,
               DruidDataType.sparkDataType(dtGrp.druidColumn.dataType)))
       //TODO: Add primitive specification support.
+      case PrimitiveExtractionFunction(dim, extractionFunctionSpec) =>
+        val outDName = dqb.nextAlias
+        Some(dqb.dimensionSpec(new ExtractionDimensionSpec(dim, extractionFunctionSpec, outDName)))
       case _ =>
         val codeGen = JSCodeGenerator(dqb, grpExpr, false, false,
           dqb.druidRelationInfo.options.timeZoneId)
