@@ -109,8 +109,10 @@ case class DruidRelation(val info: DruidRelationInfo, val druidQuery: Option[Dru
             (StringType, true)
         }
         if (columnName == info.timeDimensionCol) {
-          // Here specifies time dimension's spark data type as TimestampType.
-          timeField += StructField(info.timeDimensionCol, TimestampType)
+          // Here specifies time dimension's spark data type as StringType
+          // instead TimestampType because the precision of timestamp type
+          // is not enough (in Druid may the query granularity be millis)
+          timeField += StructField(info.timeDimensionCol, StringType)
         } else if (isDimension) {
           dimensionFields += StructField(columnName, sparkType)
         } else {
