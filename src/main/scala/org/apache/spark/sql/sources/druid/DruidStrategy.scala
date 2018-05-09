@@ -1,14 +1,14 @@
 package org.apache.spark.sql.sources.druid
 
 import org.apache.spark.sql.catalyst.plans.logical.{LogicalPlan, Project}
-import org.apache.spark.sql.execution.{DataSourceScanExec, ProjectExec, SparkPlan}
+import org.apache.spark.sql.execution.{DataSourceScanExec, ProjectExec, SparkPlan, UnionExec}
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeReference, Cast, Divide, Expression, NamedExpression}
 import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.util.ExprUtil
 import org.rzlabs.druid._
 
-import scala.collection.mutable.{ Map => MMap }
+import scala.collection.mutable.{Map => MMap}
 
 private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
   with MyLogging {
@@ -24,6 +24,7 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
     }
 
     plan.filter(_ != null).toList
+    if (plan.size < 2) plan else Seq(UnionExec(plan))
   }
 
   private def scanPlan(dqb: DruidQueryBuilder, lp: LogicalPlan): SparkPlan = {
