@@ -369,6 +369,7 @@ trait AggregateTransform {
       throw new DruidDataSourceException("Currently the DISTINCT operation is not permitted. " +
         "If you submit a COUNT(DISTINCT) aggregation function, " +
         "please use APPROX_COUNT_DISTINCT instead.")
+    case (_, Aggregate(_, _, Aggregate(_, _, _))) => Nil
     case (dqb, agg @ Aggregate(grpExprs, aggrExprs, child)) =>
       // There is 1 distinct aggregate expressions.
       // Because Druid cannot handle accurate distinct operation,
