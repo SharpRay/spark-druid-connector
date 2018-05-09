@@ -50,18 +50,26 @@ trait AggregateTransform {
     }
   }
 
-  object PrimitiveExtractionFunction {
+  class PrimitiveExtractionFunction(dqb: DruidQueryBuilder) {
+
     def unapply(e: Expression): Option[(String, ExtractionFunctionSpec)] = e match {
       case Substring(AttributeReference(nm, _, _, _), Literal(pos, _), Literal(len, _)) =>
-        val index = pos.toString.toInt
-        val length = len.toString.toInt
-        Some((nm, new SubstringExtractionFunctionSpec(index, length)))
+        for (dc <- dqb.druidColumn(nm)) yield {
+          val index = pos.toString.toInt
+          val length = len.toString.toInt
+          if (dc.isTimeDimension) {
+            (DruidDataSource.INNER_TIME_COLUMN_NAME, new SubstringExtractionFunctionSpec(index, length))
+          } else {
+            (nm, new SubstringExtractionFunctionSpec(index, length))
+          }
+        }
       case _ => None
     }
   }
 
   private def setGroupingInfo(dqb: DruidQueryBuilder,
                               timeElemExtractor: SparkNativeTimeElementExtractor,
+                              primitiveExtractionFunction: PrimitiveExtractionFunction,
                               grpExpr: Expression
                              ): Option[DruidQueryBuilder] = {
 
@@ -93,7 +101,7 @@ trait AggregateTransform {
             .outputAttribute(dtGrp.outputName, grpExpr, grpExpr.dataType,
               DruidDataType.sparkDataType(dtGrp.druidColumn.dataType)))
       //TODO: Add primitive specification support.
-      case PrimitiveExtractionFunction(dim, extractionFunctionSpec) =>
+      case primitiveExtractionFunction(dim, extractionFunctionSpec) =>
         val outDName = dqb.nextAlias
         Some(dqb.dimensionSpec(new ExtractionDimensionSpec(dim, extractionFunctionSpec, outDName)).
           outputAttribute(outDName, grpExpr, grpExpr.dataType, StringType))
@@ -116,9 +124,11 @@ trait AggregateTransform {
                                   ): Option[DruidQueryBuilder] = {
 
     val timeElemExtractor = new SparkNativeTimeElementExtractor()(dqb)
+    val primitiveExtractionFunction = new PrimitiveExtractionFunction(dqb)
 
     val dqb1 = grpExprs.foldLeft(Some(dqb).asInstanceOf[Option[DruidQueryBuilder]]) {
-      (odqb, e) => odqb.flatMap(setGroupingInfo(_, timeElemExtractor, e))
+      (odqb, e) => odqb.flatMap(setGroupingInfo(_, timeElemExtractor,
+        primitiveExtractionFunction, e))
     }
 
     // all AggregateExpressions in agregateExpressions list.
