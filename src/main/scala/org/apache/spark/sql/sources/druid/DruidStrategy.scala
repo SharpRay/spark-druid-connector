@@ -52,21 +52,24 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
 
     var dqb1 = dqb.copy(referencedDruidColumns = MMap(referredDruidColumn.toSeq: _*))
 
-    // Set outputAttrs with projectList
-    for (na <- projectList;
-         attr <- na.references;
-         dc <- dqb.druidColumn(attr.name)) {
-      dqb1 = dqb1.outputAttribute(attr.name, attr, attr.dataType,
-        DruidDataType.sparkDataType(dc.dataType), null)
+    def addOutputAttributes(exprs: Seq[Expression]) = {
+      for (na <- exprs;
+           attr <- na.references;
+           dc <- dqb.druidColumn(attr.name)) {
+        dqb1 = if (dc.isTimeDimension) {
+          dqb1.outputAttribute(DruidDataSource.TIMESTAMP_KEY_NAME, attr, attr.dataType,
+            DruidDataType.sparkDataType(dc.dataType), null)
+        } else {
+          dqb1.outputAttribute(attr.name, attr, attr.dataType,
+            DruidDataType.sparkDataType(dc.dataType), null)
+        }
+      }
     }
 
+    // Set outputAttrs with projectList
+    addOutputAttributes(projectList)
     // Set outputAttrs with filters
-    for (e <- dqb.origFilter;
-         attr <- e.references;
-         dc <- dqb.druidColumn(attr.name)) {
-      dqb1 = dqb1.outputAttribute(attr.name, attr, attr.dataType,
-        DruidDataType.sparkDataType(dc.dataType), null)
-    }
+    addOutputAttributes(dqb1.origFilter.toSeq)
 
     val druidSchema = new DruidSchema(dqb1)
 
