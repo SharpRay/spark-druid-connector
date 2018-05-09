@@ -74,9 +74,16 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
 
     // Remove the time dimension in select list because we will
     // use 'timestamp' field instead.
-    val columns = dqb1.referencedDruidColumns.values.collect {
+    var columns = dqb1.referencedDruidColumns.values.collect {
       case col if !col.isTimeDimension => col.name
     }.toList
+
+    // The empty column list indicates that the time field is removed,
+    // In order to prevent scan query returning all fields we just add
+    // a column.
+    if (columns.isEmpty) {
+      columns = columns :+ dqb1.druidRelationInfo.druidColumns.head._1
+    }
 
     var qrySpec: QuerySpec =
       new ScanQuerySpec(dqb1.druidRelationInfo.druidDataSource.name,
