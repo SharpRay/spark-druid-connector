@@ -82,7 +82,7 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
                  (dc.isDimension() || dc.isNotIndexedDimension)) && validInParams(dc.name))
           ) yield {
             if (dc.isTimeDimension) {
-              Some(new JSExpr(dc.name, LongType, true))
+              Some(new JSExpr(DruidDataSource.INNER_TIME_COLUMN_NAME, LongType, true))
             } else if (DruidDataType.sparkDataType(dc.dataType) == dataType) {
               // This is always true because all columns is in Druid.
               Some(new JSExpr(dc.name, dataType, false))
