@@ -63,63 +63,44 @@ trait AggregateTransform {
             new SubstringExtractionFunctionSpec(index, length))
         }
       case Substring(expr, Literal(pos, _), Literal(len, _)) =>
-        val ret: Option[Option[(String, ExtractionFunctionSpec)]] =
-          for ((dim, spec) <- self.unapply(expr)) yield {
-          for (dc <- dqb.druidColumn(dim)) yield {
-            val index = pos.toString.toInt
-            val length = len.toString.toInt
-            (dim, new CascadeExtractionFunctionSpec(List(
-              spec,
-              new SubstringExtractionFunctionSpec(index, length)
-            )))
-          }
+        for ((dim, spec) <- self.unapply(expr)) yield {
+          val index = pos.toString.toInt
+          val length = len.toString.toInt
+          (dim, new CascadeExtractionFunctionSpec(List(
+            spec,
+            new SubstringExtractionFunctionSpec(index, length)
+          )))
         }
-        ret.flatten
       case Length(AttributeReference(nm, _, _, _)) =>
         for (dc <- dqb.druidColumn(nm)) yield
           (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
             new StrlenExtractionFunctionSpec())
       case Length(expr) =>
-        val ret: Option[Option[(String, ExtractionFunctionSpec)]] =
-          for ((dim, spec) <- self.unapply(expr)) yield {
-            for (dc <- dqb.druidColumn(dim)) yield {
-              (dim, new CascadeExtractionFunctionSpec(List(
-                spec,
-                new StrlenExtractionFunctionSpec()
-              )))
-            }
-          }
-        ret.flatten
+        for ((dim, spec) <- self.unapply(expr)) yield
+          (dim, new CascadeExtractionFunctionSpec(List(
+            spec,
+            new StrlenExtractionFunctionSpec()
+          )))
       case Upper(AttributeReference(nm, _, _, _)) =>
         for (dc <- dqb.druidColumn(nm)) yield
           (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
             new UpperAndLowerExtractionFunctionSpec("upper"))
       case Upper(expr) =>
-        val ret: Option[Option[(String, ExtractionFunctionSpec)]] =
-          for ((dim, spec) <- self.unapply(expr)) yield {
-            for (dc <- dqb.druidColumn(dim)) yield {
-              (dim, new CascadeExtractionFunctionSpec(List(
-                spec,
-                new UpperAndLowerExtractionFunctionSpec("upper")
-              )))
-            }
-          }
-        ret.flatten
+        for ((dim, spec) <- self.unapply(expr)) yield
+          (dim, new CascadeExtractionFunctionSpec(List(
+            spec,
+            new UpperAndLowerExtractionFunctionSpec("upper")
+          )))
       case Lower(AttributeReference(nm, _, _, _)) =>
         for (dc <- dqb.druidColumn(nm)) yield
           (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
             new UpperAndLowerExtractionFunctionSpec("lower"))
       case Lower(expr) =>
-        val ret: Option[Option[(String, ExtractionFunctionSpec)]] =
-          for ((dim, spec) <- self.unapply(expr)) yield {
-            for (dc <- dqb.druidColumn(dim)) yield {
-              (dim, new CascadeExtractionFunctionSpec(List(
-                spec,
-                new UpperAndLowerExtractionFunctionSpec("lower")
-              )))
-            }
-          }
-        ret.flatten
+        for ((dim, spec) <- self.unapply(expr)) yield
+          (dim, new CascadeExtractionFunctionSpec(List(
+            spec,
+            new UpperAndLowerExtractionFunctionSpec("lower")
+          )))
       //TODO: Add more extraction function check.
       case _ => None
     }
