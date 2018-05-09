@@ -138,11 +138,12 @@ case class ScanQuerySpec(queryType: String,
                          intervals: List[String],
                          batchSize: Option[Int] = None,
                          limit: Option[Int] = None,
+                         legacy: Boolean = true,
                          context: Option[QuerySpecContext] = None) extends QuerySpec {
   def this(dataSource: String, columns: List[String], filter: Option[FilterSpec],
            intervals: List[String], batchSize: Option[Int],
-           limit: Option[Int], context: Option[QuerySpecContext]) = {
-    this("scan", dataSource, columns, filter, intervals, batchSize, limit, context)
+           limit: Option[Int], legacy: Boolean, context: Option[QuerySpecContext]) = {
+    this("scan", dataSource, columns, filter, intervals, batchSize, limit, legacy, context)
   }
 
   override def setIntervals(ins: List[Interval]): QuerySpec = {

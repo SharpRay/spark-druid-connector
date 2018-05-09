@@ -38,7 +38,19 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
   private def scanPlan(dqb: DruidQueryBuilder,
                        projectList: Seq[NamedExpression]): SparkPlan = {
 
-    var dqb1 = dqb
+    // Replace __time with timestamp because Druid returns 'tiemstamp' field
+    // to represent the timestamp string if specifying 'lagecy' in scanQuerySpec .
+    val referredDruidColumn = dqb.referencedDruidColumns.mapValues { dc =>
+      if (dc.isTimeDimension) {
+        // The dataType of druidColumn of type DruidColumn in
+        // DruidRelationColumn has already been set as StringType.
+        dc.copy(druidColumn =
+          dc.druidColumn.map(d =>
+            d.asInstanceOf[DruidTimeDimension].copy(name = DruidDataSource.TIMESTAMP_KEY_NAME)))
+      } else dc
+    }
+
+    var dqb1 = dqb.copy(referencedDruidColumns = MMap(referredDruidColumn.toSeq: _*))
 
     // Set outputAttrs with projectList
     for (na <- projectList;
@@ -60,13 +72,20 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
 
     val intervals = dqb1.queryIntervals.get
 
+    // Remove the time dimension in select list because we will
+    // use 'timestamp' field instead.
+    val columns = dqb1.referencedDruidColumns.values.collect {
+      case col if !col.isTimeDimension => col.name
+    }.toList
+
     var qrySpec: QuerySpec =
       new ScanQuerySpec(dqb1.druidRelationInfo.druidDataSource.name,
-        dqb1.referencedDruidColumns.values.map(_.name).toList,
+        columns,
         dqb1.filterSpec,
         intervals.map(_.toString),
         None,
         None,
+        true,
         Some(QuerySpecContext(s"query-${System.nanoTime()}"))
       )
 
