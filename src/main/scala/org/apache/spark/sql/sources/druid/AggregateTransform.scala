@@ -57,12 +57,15 @@ trait AggregateTransform {
         for (dc <- dqb.druidColumn(nm)) yield {
           val index = pos.toString.toInt
           val length = len.toString.toInt
-          if (dc.isTimeDimension) {
-            (DruidDataSource.INNER_TIME_COLUMN_NAME, new SubstringExtractionFunctionSpec(index, length))
-          } else {
-            (nm, new SubstringExtractionFunctionSpec(index, length))
-          }
+          (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
+            new SubstringExtractionFunctionSpec(index, length))
         }
+      case Length(AttributeReference(nm, _, _, _)) =>
+        for (dc <- dqb.druidColumn(nm)) yield {
+          (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
+            new StrlenExtractionFunctionSpec())
+        }
+      //TODO: Add more extraction function check.
       case _ => None
     }
   }
@@ -100,7 +103,6 @@ trait AggregateTransform {
           new ExtractionDimensionSpec(colName, timeFmtExtractFunc, dtGrp.outputName))
             .outputAttribute(dtGrp.outputName, grpExpr, grpExpr.dataType,
               DruidDataType.sparkDataType(dtGrp.druidColumn.dataType)))
-      //TODO: Add primitive specification support.
       case primitiveExtractionFunction(dim, extractionFunctionSpec) =>
         val outDName = dqb.nextAlias
         Some(dqb.dimensionSpec(new ExtractionDimensionSpec(dim, extractionFunctionSpec, outDName)).
