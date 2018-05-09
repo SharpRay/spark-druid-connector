@@ -95,7 +95,8 @@ trait AggregateTransform {
       //TODO: Add primitive specification support.
       case PrimitiveExtractionFunction(dim, extractionFunctionSpec) =>
         val outDName = dqb.nextAlias
-        Some(dqb.dimensionSpec(new ExtractionDimensionSpec(dim, extractionFunctionSpec, outDName)))
+        Some(dqb.dimensionSpec(new ExtractionDimensionSpec(dim, extractionFunctionSpec, outDName)).
+          outputAttribute(outDName, grpExpr, grpExpr.dataType, StringType))
       case _ =>
         val codeGen = JSCodeGenerator(dqb, grpExpr, false, false,
           dqb.druidRelationInfo.options.timeZoneId)
