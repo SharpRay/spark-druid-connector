@@ -61,10 +61,17 @@ trait AggregateTransform {
             new SubstringExtractionFunctionSpec(index, length))
         }
       case Length(AttributeReference(nm, _, _, _)) =>
-        for (dc <- dqb.druidColumn(nm)) yield {
+        for (dc <- dqb.druidColumn(nm)) yield
           (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
             new StrlenExtractionFunctionSpec())
-        }
+      case Upper(AttributeReference(nm, _, _, _)) =>
+        for (dc <- dqb.druidColumn(nm)) yield
+          (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
+            new UpperAndLowerExtractionFunctionSpec("upper"))
+      case Lower(AttributeReference(nm, _, _, _)) =>
+        for (dc <- dqb.druidColumn(nm)) yield
+          (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
+            new UpperAndLowerExtractionFunctionSpec("lower"))
       //TODO: Add more extraction function check.
       case _ => None
     }
