@@ -54,53 +54,58 @@ trait AggregateTransform {
 
     self =>
 
-    def unapply(e: Expression): Option[(String, ExtractionFunctionSpec)] = e match {
+    def unapply(e: Expression): Option[(String, ExtractionFunctionSpec, DataType)] = e match {
       case Substring(AttributeReference(nm, _, _, _), Literal(pos, _), Literal(len, _)) =>
         for (dc <- dqb.druidColumn(nm)) yield {
           val index = pos.toString.toInt
           val length = len.toString.toInt
           (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
-            new SubstringExtractionFunctionSpec(index, length))
+            new SubstringExtractionFunctionSpec(index, length), StringType)
         }
       case Substring(expr, Literal(pos, _), Literal(len, _)) =>
-        for ((dim, spec) <- self.unapply(expr)) yield {
+        for ((dim, spec, dt) <- self.unapply(expr)) yield {
           val index = pos.toString.toInt
           val length = len.toString.toInt
           (dim, new CascadeExtractionFunctionSpec(List(
             spec,
             new SubstringExtractionFunctionSpec(index, length)
-          )))
+          )), StringType)
         }
       case Length(AttributeReference(nm, _, _, _)) =>
         for (dc <- dqb.druidColumn(nm)) yield
           (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
-            new StrlenExtractionFunctionSpec())
+            new StrlenExtractionFunctionSpec(), IntegerType)
       case Length(expr) =>
-        for ((dim, spec) <- self.unapply(expr)) yield
+        for ((dim, spec, dt) <- self.unapply(expr)) yield
           (dim, new CascadeExtractionFunctionSpec(List(
             spec,
             new StrlenExtractionFunctionSpec()
-          )))
+          )), IntegerType)
       case Upper(AttributeReference(nm, _, _, _)) =>
         for (dc <- dqb.druidColumn(nm)) yield
           (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
-            new UpperAndLowerExtractionFunctionSpec("upper"))
+            new UpperAndLowerExtractionFunctionSpec("upper"), StringType)
       case Upper(expr) =>
-        for ((dim, spec) <- self.unapply(expr)) yield
+        for ((dim, spec, dt) <- self.unapply(expr)) yield
           (dim, new CascadeExtractionFunctionSpec(List(
             spec,
             new UpperAndLowerExtractionFunctionSpec("upper")
-          )))
+          )), StringType)
       case Lower(AttributeReference(nm, _, _, _)) =>
         for (dc <- dqb.druidColumn(nm)) yield
           (if (dc.isTimeDimension) DruidDataSource.INNER_TIME_COLUMN_NAME else nm,
-            new UpperAndLowerExtractionFunctionSpec("lower"))
+            new UpperAndLowerExtractionFunctionSpec("lower"), StringType)
       case Lower(expr) =>
-        for ((dim, spec) <- self.unapply(expr)) yield
+        for ((dim, spec, dt) <- self.unapply(expr)) yield
           (dim, new CascadeExtractionFunctionSpec(List(
             spec,
             new UpperAndLowerExtractionFunctionSpec("lower")
-          )))
+          )), StringType)
+
+      case Cast(expr, dt) =>
+        for ((dim, spec, _) <- self.unapply(expr)) yield {
+          (dim, spec, dt)
+        }
       //TODO: Add more extraction function check.
       case _ => None
     }
@@ -139,10 +144,10 @@ trait AggregateTransform {
           new ExtractionDimensionSpec(colName, timeFmtExtractFunc, dtGrp.outputName))
             .outputAttribute(dtGrp.outputName, grpExpr, grpExpr.dataType,
               DruidDataType.sparkDataType(dtGrp.druidColumn.dataType)))
-      case primitiveExtractionFunction(dim, extractionFunctionSpec) =>
+      case primitiveExtractionFunction(dim, extractionFunctionSpec, dt) =>
         val outDName = dqb.nextAlias
         Some(dqb.dimensionSpec(new ExtractionDimensionSpec(dim, extractionFunctionSpec, outDName)).
-          outputAttribute(outDName, grpExpr, grpExpr.dataType, StringType))
+          outputAttribute(outDName, grpExpr, grpExpr.dataType, dt))
       case _ =>
         val codeGen = JSCodeGenerator(dqb, grpExpr, false, false,
           dqb.druidRelationInfo.options.timeZoneId)
