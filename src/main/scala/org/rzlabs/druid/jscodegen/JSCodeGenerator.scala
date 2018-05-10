@@ -116,7 +116,7 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
             case _ => JSCast(new JSExpr(v.toString, StringType, false), dataType, this).castCode
           }
 
-        case Cast(child, dt) => genCastExprCode(child, dt)
+        case Cast(child, dt, _) => genCastExprCode(child, dt)
 
         case Concat(exprs) =>
           exprs.tail.foldLeft(genExprCode(exprs.head)) {
@@ -297,17 +297,17 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
         case WeekOfYear(w) =>
           for (je <- genExprCode(w); cje <- JSCast(je, DateType, this).castCode) yield
             JSExpr(cje.fnVar, cje.linesSoFar, weekOfYear(cje.getRef), IntegerType)
-        case Hour(h) =>
+        case Hour(h, _) =>
           for (je <- genExprCode(h); cje <- JSCast(je, TimestampType, this).castCode) yield
             JSExpr(cje.fnVar, cje.linesSoFar, hourOfDay(cje.getRef), IntegerType)
-        case Minute(m) =>
+        case Minute(m, _) =>
           for (je <- genExprCode(m); cje <- JSCast(je, TimestampType, this).castCode) yield
             JSExpr(cje.fnVar, cje.linesSoFar, minuteOfHour(cje.getRef), IntegerType)
-        case Second(s) =>
+        case Second(s, _) =>
           for (je <- genExprCode(s); cje <- JSCast(je, TimestampType, this).castCode) yield
             JSExpr(cje.fnVar, cje.linesSoFar, secondOfMinute(cje.getRef), IntegerType)
 
-        case FromUnixTime(sec, fmt) =>
+        case FromUnixTime(sec, fmt, _) =>
           for (sje <- genExprCode(sec); csje <- JSCast(sje, LongType, this).castCode;
                fje <- genExprCode(fmt); cfje <- JSCast(fje, StringType, this).castCode) yield {
             val dtCode = longToISODtCode(csje.getRef, dateTimeCtx)
@@ -316,7 +316,7 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
               else dtToStrCode(dtCode, fje.getRef, false), StringType)
           }
 
-        case UnixTimestamp(time, fmt) =>
+        case UnixTimestamp(time, fmt, _) =>
           // Because String -> Timestamp cast will call 'stringToISODtCode' method without
           // format string, so we cast to StringType first, then call 'stringToISODtCode'
           // manually with format.
@@ -333,7 +333,7 @@ case class JSCodeGenerator(dqb: DruidQueryBuilder, e: Expression, multiInputPara
             JSExpr(None, cdje.linesSoFar + cfje.linesSoFar,
               truncate(cdje.getRef, cfje.getRef), StringType)
 
-        case DateFormatClass(dt, fmt) =>
+        case DateFormatClass(dt, fmt, _) =>
           for (dje <- genExprCode(dt); cdje <- JSCast(dje, TimestampType, this).castCode;
                fje <- genExprCode(fmt); cfje <- JSCast(fje, StringType, this).castCode) yield
             JSExpr(None, cdje.linesSoFar + cfje.linesSoFar, dtToStrCode(cdje.getRef,

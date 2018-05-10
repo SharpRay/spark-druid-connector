@@ -102,7 +102,7 @@ trait AggregateTransform {
             new UpperAndLowerExtractionFunctionSpec("lower")
           )), StringType)
 
-      case Cast(expr, dt) =>
+      case Cast(expr, dt, _) =>
         for ((dim, spec, _) <- self.unapply(expr)) yield {
           (dim, spec, dt)
         }
@@ -187,7 +187,7 @@ trait AggregateTransform {
   private def attrRefName(e: Expression): Option[String] = {
     e match {
       case AttributeReference(nm, _, _, _) => Some(nm)
-      case Cast(AttributeReference(nm, _, _, _), _) => Some(nm)
+      case Cast(AttributeReference(nm, _, _, _), _, _) => Some(nm)
       case Alias(AttributeReference(nm, _, _, _), _) => Some(nm)
       case _ => None
     }
@@ -230,7 +230,7 @@ trait AggregateTransform {
                    columnName <- attrRefName(c);
                    dc <- dqb.druidColumn(columnName) if dc.isMetric;
                    cdt <- Some(DruidDataType.sparkDataType(dc.dataType));
-                   dt <- TypeCoercion.findTightestCommonTypeOfTwo(aggrFunc.dataType, cdt)
+                   dt <- TypeCoercion.findTightestCommonType(aggrFunc.dataType, cdt)
       ) yield (aggrFunc, dt, dc, outputName)
 
       r.flatMap {
@@ -267,7 +267,7 @@ trait AggregateTransform {
                    columnName <- attrRefName(c);
                    dc <- dqb.druidColumn(columnName) if dc.isMetric;
                    cdt <- Some(DruidDataType.sparkDataType(dc.dataType));
-                   dt <- TypeCoercion.findTightestCommonTypeOfTwo(aggrFunc.dataType, cdt)
+                   dt <- TypeCoercion.findTightestCommonType(aggrFunc.dataType, cdt)
                    ) yield
         (aggrFunc, dt, dc, outputName)
 
