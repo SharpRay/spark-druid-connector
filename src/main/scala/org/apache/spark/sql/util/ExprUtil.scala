@@ -18,7 +18,7 @@ object ExprUtil {
     case Literal(v, _) if v == null => false
     case _ if e.isInstanceOf[LeafExpression] => true // LeafExpression except Literal(null)
     // TODO: Expand the case below
-    case Cast(_, _) | BinaryArithmetic(_, _) | UnaryMinus(_) | UnaryPositive(_) | Abs(_) |
+    case Cast(_, _, _) | BinaryArithmetic(_, _) | UnaryMinus(_) | UnaryPositive(_) | Abs(_) |
       Concat(_) => e.children.filter(_.isInstanceOf[Expression]).foldLeft(true) {
       (lb, ce) => if (nullPreserving(ce) && lb) true else false
     }
@@ -144,7 +144,7 @@ object ExprUtil {
 
   private[this] object SimplifyCast {
     def unapply(e: Expression): Option[Expression] = e match {
-      case Cast(Cast(_, _), dt) =>
+      case Cast(Cast(_, _, _), dt, _) =>
         val c = simplifyCast(e, dt)
         if (c == e) None else Some(c)
       case _ => None
@@ -162,7 +162,7 @@ object ExprUtil {
    * @return
    */
   def simplifyCast(oe: Expression, odt: DataType): Expression = oe match {
-    case Cast(ie, idt) if odt.isInstanceOf[NumericType] &&
+    case Cast(ie, idt, _) if odt.isInstanceOf[NumericType] &&
       (idt.isInstanceOf[DoubleType] || idt.isInstanceOf[FloatType] ||
         idt.isInstanceOf[DecimalType]) => Cast(ie, odt)
     case _ => oe

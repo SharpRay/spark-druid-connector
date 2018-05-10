@@ -47,29 +47,29 @@ class SparkNativeTimeElementExtractor(implicit val dqb: DruidQueryBuilder) {
     case DruidColumnExtractor(dc) if e.dataType == DateType =>
       Some(DateTimeGroupingElem(dqb.nextAlias, dc, DATE_FORMAT,
         Some(dqb.druidRelationInfo.options.timeZoneId), e))
-    case Cast(c @ DruidColumnExtractor(dc), DateType) =>
+    case Cast(c @ DruidColumnExtractor(dc), DateType, _) =>
       // e.g., "cast(time as date)"
       Some(DateTimeGroupingElem(dqb.nextAlias, dc, DATE_FORMAT,
         Some(dqb.druidRelationInfo.options.timeZoneId), c))
-    case Cast(self(dtGrp), DateType) =>
+    case Cast(self(dtGrp), DateType, _) =>
       // e.g., "cast(from_utc_timestamp(time, 'GMT') as date)", include last case
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         DATE_FORMAT, dtGrp.timeZone, dtGrp.pushedExpression))
     case DruidColumnExtractor(dc) if e.dataType == StringType =>
       Some(DateTimeGroupingElem(dqb.nextAlias, dc, TIMESTAMP_FORMAT,
         Some(dqb.druidRelationInfo.options.timeZoneId), e))
-    case Cast(self(dtGrp), StringType) =>
+    case Cast(self(dtGrp), StringType, _) =>
       // e.g., "cast(time as string)"
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         dtGrp.formatToApply, dtGrp.timeZone, e))
     case DruidColumnExtractor(dc) if e.dataType == TimestampType =>
       Some(DateTimeGroupingElem(dqb.nextAlias, dc, TIMESTAMP_FORMAT,
         Some(dqb.druidRelationInfo.options.timeZoneId), e))
-    case Cast(c @ DruidColumnExtractor(dc), TimestampType) =>
+    case Cast(c @ DruidColumnExtractor(dc), TimestampType, _) =>
       // e.g., "cast(time as timestamp)"
       Some(DateTimeGroupingElem(dqb.nextAlias, dc, TIMESTAMP_FORMAT,
         Some(dqb.druidRelationInfo.options.timeZoneId), c))
-    case Cast(self(dtGrp), TimestampType) =>
+    case Cast(self(dtGrp), TimestampType, _) =>
       // e.g., "cast(to_date(time) as timestamp)", include last case
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         TIMESTAMP_FORMAT, dtGrp.timeZone, dtGrp.pushedExpression))
@@ -97,19 +97,19 @@ class SparkNativeTimeElementExtractor(implicit val dqb: DruidQueryBuilder) {
       // e.g., "weekofyear(cast(time as date))"
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         WEEKOFYEAR_FORMAT, dtGrp.timeZone, e))
-    case Hour(self(dtGrp)) =>
+    case Hour(self(dtGrp), _) =>
       // e.g., "hour(cast(time as date))"
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         HOUR_FORMAT, dtGrp.timeZone, e))
-    case Minute(self(dtGrp)) =>
+    case Minute(self(dtGrp), _) =>
       // e.g., "minute(cast(time as date))"
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         MINUTE_FORMAT, dtGrp.timeZone, e))
-    case Second(self(dtGrp)) =>
+    case Second(self(dtGrp), _) =>
       // e.g., "second(cast(time as date))"
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         SECOND_FORMAT, dtGrp.timeZone, e))
-    case UnixTimestamp(self(dtGrp), Literal(inFmt, StringType)) =>
+    case UnixTimestamp(self(dtGrp), Literal(inFmt, StringType), _) =>
       // e.g., "unix_timestamp(cast(time as date), 'YYYY-MM-dd HH:mm:ss')"
 
       // TODO: UnixTImestamp should parse with JSGenerator
@@ -118,7 +118,7 @@ class SparkNativeTimeElementExtractor(implicit val dqb: DruidQueryBuilder) {
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         TIMESTAMP_FORMAT, dtGrp.timeZone, dtGrp.pushedExpression,
         Some(inFmt.toString)))
-    case UnixTimestamp(c @ DruidColumnExtractor(dc), Literal(inFmt, StringType)) =>
+    case UnixTimestamp(c @ DruidColumnExtractor(dc), Literal(inFmt, StringType), _) =>
       // e.g., "unix_timestamp(time, 'YYYY-MM-dd HH:mm:ss')"
 
       // TODO: UnixTImestamp should parse with JSGenerator
@@ -127,13 +127,13 @@ class SparkNativeTimeElementExtractor(implicit val dqb: DruidQueryBuilder) {
       Some(DateTimeGroupingElem(dqb.nextAlias, dc,
         TIMESTAMP_FORMAT, None, c,
         Some(inFmt.toString)))
-    case FromUnixTime(self(dtGrp), Literal(outFmt, StringType)) =>
+    case FromUnixTime(self(dtGrp), Literal(outFmt, StringType), _) =>
       // TODO: Remove this case because the TimeFormatExtractionFunctionSpec
       // cannot represent the bigint input. We should use
       // JavascriptExtractionFunctionSpec out of here.
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         outFmt.toString, dtGrp.timeZone, e))
-    case FromUnixTime(c @ DruidColumnExtractor(dc), Literal(outFmt, StringType)) =>
+    case FromUnixTime(c @ DruidColumnExtractor(dc), Literal(outFmt, StringType), _) =>
       // TODO: Remove this case because the TimeFormatExtractionFunctionSpec
       // cannot represent the bigint input. We should use
       // JavascriptExtractionFunctionSpec out of here.

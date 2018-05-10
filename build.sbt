@@ -1,5 +1,5 @@
 
-val sparkVersion = "2.1.2"
+val sparkVersion = "2.2.1"
 val json4sVersion = "3.6.0-M2"
 val jodaVersion = "2.9.9"
 val curatorVersion = "4.0.1"
