@@ -73,10 +73,16 @@ class SparkNativeTimeElementExtractor(implicit val dqb: DruidQueryBuilder) {
       // e.g., "cast(to_date(time) as timestamp)", include last case
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
         TIMESTAMP_FORMAT, dtGrp.timeZone, dtGrp.pushedExpression))
-    case ToDate(self(dtGrp)) =>
-      // e.g., "to_date(time)"
+    //case ToDate(self(dtGrp)) =>
+    //  // e.g., "to_date(time)"
+    //  Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
+    //    DATE_FORMAT, dtGrp.timeZone,dtGrp.pushedExpression))
+    case ParseToDate(self(dtGrp), fmt, _) if fmt.isInstanceOf[Option[Literal]] =>
+      val fmtStr = if (fmt.nonEmpty) {
+        fmt.map(_.asInstanceOf[Literal].value.toString).get
+      } else DATE_FORMAT
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,
-        DATE_FORMAT, dtGrp.timeZone,dtGrp.pushedExpression))
+        fmtStr, dtGrp.timeZone, dtGrp.pushedExpression))
     case Year(self(dtGrp)) =>
       // e.g., "year(cast(time as date))"
       Some(DateTimeGroupingElem(dtGrp.outputName, dtGrp.druidColumn,

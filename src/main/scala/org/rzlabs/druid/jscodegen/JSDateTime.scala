@@ -75,9 +75,22 @@ private[jscodegen] object JSDateTimeCtx {
     s"new org.joda.time.DateTime($l, ${ctx.tzVar})"
   }
 
-  private[jscodegen] def stringToDateCode(s: String, ctx: JSDateTimeCtx) = {
-    ctx.createJodaISOFormatter = true
-    s"""org.joda.time.LocalDate.parse($s, ${ctx.isoFormatterVar})"""
+//  private[jscodegen] def stringToDateCode(s: String, ctx: JSDateTimeCtx) = {
+//    ctx.createJodaISOFormatter = true
+//    s"""org.joda.time.LocalDate.parse($s, ${ctx.isoFormatterVar})"""
+//  }
+
+  private[jscodegen] def stringToDateCode(s: String, ctx: JSDateTimeCtx,
+                                      withFmt: Boolean = false,
+                                      fmt: Option[String] = None): String = {
+    ctx.createJodaTz = true
+    ctx.createJodaISOFormatterWithTz = true
+    if (!withFmt) {
+      s"""org.joda.time.LocalDate.parse($s, ${ctx.isoFormatterVar})"""
+    } else {
+      s"""org.joda.time.LocalDate.parse($s,
+         |org.joda.time.format.DateTimeFormat.forPattern("${fmt.get}").withZone(${ctx.tzVar}))""".stripMargin
+    }
   }
 
   /**
@@ -96,18 +109,15 @@ private[jscodegen] object JSDateTimeCtx {
 
 
   private[jscodegen] def stringToISODtCode(s: String, ctx: JSDateTimeCtx,
-                                           withFmt: Boolean = false, litFmt: Boolean = true,
-                                           fmt: String = null) = {
+                                           withFmt: Boolean = false,
+                                           fmt: Option[String] = None) = {
     ctx.createJodaTz = true
     ctx.createJodaISOFormatterWithTz = true
     if (!withFmt) {
       s"""org.joda.time.DateTime.parse(($s).replace(" ", "T"), ${ctx.isoFormatterWIthTzVar})"""
-    } else if (litFmt) {
-      s"""org.joda.time.DateTime.parse($s,
-         |org.joda.time.DateTimeFormat.forPattern("$fmt").withZone(${ctx.tzVar}))""".stripMargin
     } else {
       s"""org.joda.time.DateTime.parse($s,
-         |org.joda.time.DateTimeFormat.forPattern($fmt).withZone(${ctx.tzVar}))""".stripMargin
+         |org.joda.time.format.DateTimeFormat.forPattern("$fmt").withZone(${ctx.tzVar}))""".stripMargin
     }
   }
 

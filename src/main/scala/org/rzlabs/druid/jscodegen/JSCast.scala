@@ -2,7 +2,7 @@ package org.rzlabs.druid.jscodegen
 
 import org.apache.spark.sql.types._
 
-case class JSCast(from: JSExpr, toDT: DataType, ctx: JSCodeGenerator) {
+case class JSCast(from: JSExpr, toDT: DataType, ctx: JSCodeGenerator, fmt: Option[String] = None) {
 
   import JSDateTimeCtx._
 
@@ -62,7 +62,11 @@ case class JSCast(from: JSExpr, toDT: DataType, ctx: JSCodeGenerator) {
 
   private[this] def castToDateCode: Option[JSExpr] = from.fnDT match {
     case StringType =>
-      Some(JSExpr(None, from.linesSoFar, stringToDateCode(from.getRef, ctx.dateTimeCtx), DateType))
+      if (fmt.nonEmpty) {
+        Some(JSExpr(None, from.linesSoFar, stringToDateCode(from.getRef, ctx.dateTimeCtx, true, fmt), DateType))
+      } else {
+        Some(JSExpr(None, from.linesSoFar, stringToDateCode(from.getRef, ctx.dateTimeCtx), DateType))
+      }
     case TimestampType =>
       Some(JSExpr(None, from.linesSoFar, dtToDateCode(from.getRef), DateType))
     case LongType if from.timeDim =>
@@ -72,7 +76,11 @@ case class JSCast(from: JSExpr, toDT: DataType, ctx: JSCodeGenerator) {
 
   private[this] def castToTimestampCode: Option[JSExpr] = from.fnDT match {
     case StringType =>
-      Some(JSExpr(None, from.linesSoFar, stringToISODtCode(from.getRef, ctx.dateTimeCtx), TimestampType))
+      if (fmt.nonEmpty) {
+        Some(JSExpr(None, from.linesSoFar, stringToISODtCode(from.getRef, ctx.dateTimeCtx, true, fmt), TimestampType))
+      } else {
+        Some(JSExpr(None, from.linesSoFar, stringToISODtCode(from.getRef, ctx.dateTimeCtx), TimestampType))
+      }
     case BooleanType =>
       Some(JSExpr(None, from.linesSoFar, stringToISODtCode(
         s""" (${from.getRef}) == true ? "T00:00:01Z" : "T00:00:00Z"""", ctx.dateTimeCtx), TimestampType))

@@ -217,7 +217,7 @@ trait ProjectFilterTransform {
 
   val druidRelationTransform: DruidTransform = {
     case (_, PhysicalOperation(projectList, filters,
-    l @ LogicalRelation(d @ DruidRelation(info, _), _, _))) =>
+    l @ LogicalRelation(d @ DruidRelation(info, _), _, _, _))) =>
       // This is the initial DruidQueryBuilder which all transformations
       // are based on.
       val dqb: Option[DruidQueryBuilder] = Some(DruidQueryBuilder(info))

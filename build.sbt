@@ -1,9 +1,9 @@
 
-val sparkVersion = "2.2.1"
+val sparkVersion = "2.3.0"
 val json4sVersion = "3.6.0-M2"
 val jodaVersion = "2.9.9"
 val curatorVersion = "4.0.1"
-val jacksonVersion = "2.9.5"
+val jacksonVersion = "2.6.5"
 val apacheHttpVersion = "4.5.5"
 
 val myDependencies = Seq(

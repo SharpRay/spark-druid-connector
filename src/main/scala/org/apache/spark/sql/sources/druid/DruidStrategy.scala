@@ -5,9 +5,11 @@ import org.apache.spark.sql.execution._
 import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeReference, Cast, Divide, Expression, NamedExpression}
 import org.apache.spark.sql.catalyst.plans.physical.UnknownPartitioning
-import org.apache.spark.sql.types.DoubleType
+import org.apache.spark.sql.sources.Filter
+import org.apache.spark.sql.types.{DoubleType, StringType}
 import org.apache.spark.sql.util.ExprUtil
 import org.rzlabs.druid._
+import org.rzlabs.druid.metadata.DruidRelationColumn
 
 import scala.collection.mutable.{Map => MMap}
 
@@ -238,6 +240,17 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
 
   }
 
+  private def dataSourceFullAttributes(dqb: DruidQueryBuilder): Seq[Attribute] = {
+    dqb.druidRelationInfo.druidColumns.map {
+      case (colName: String, drCol: DruidRelationColumn) =>
+        val druidCol: Option[DruidColumn] = drCol.druidColumn
+        val dataType = if (druidCol.nonEmpty) {
+          DruidDataType.sparkDataType(druidCol.get.dataType)
+        } else StringType
+        AttributeReference(colName, dataType)()
+    }.toSeq
+  }
+
   private def buildPlan(dqb: DruidQueryBuilder,
                         druidSchema: DruidSchema,
                         druidQuery: DruidQuery,
@@ -248,14 +261,24 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
 
     val druidRelation = DruidRelation(dqb.druidRelationInfo, Some(druidQuery))(planner.sqlContext)
 
+    val fullAttributes = dataSourceFullAttributes(dqb)
+    val requiredColumnIndex = (0 until fullAttributes.size).toSeq
+
     val druidSparkPlan = postDruidStep(
       //DataSourceScanExec.create(druidSchema.schema,
       //druidRelation.buildInternalScan, druidRelation)
-      RowDataSourceScanExec(druidSchema.schema,
+      //RowDataSourceScanExec(druidSchema.schema,
+      //  druidRelation.buildInternalScan,
+      //  druidRelation,
+      //  UnknownPartitioning(0),
+      //  Map(),
+      //  None)
+      RowDataSourceScanExec(dataSourceFullAttributes(dqb),
+        requiredColumnIndex,
+        Set(),
+        Set(),
         druidRelation.buildInternalScan,
         druidRelation,
-        UnknownPartitioning(0),
-        Map(),
         None)
     )
 
