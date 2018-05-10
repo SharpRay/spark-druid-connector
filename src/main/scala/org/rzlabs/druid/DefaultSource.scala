@@ -181,7 +181,7 @@ object DefaultSource {
    * The options include 'minute', 'hour', 'day' and etc.
    */
   val QUERY_GRANULARITY = "queryGranularity"
-  val DEFAULT_QUERY_GRANULARITY = "none"
+  val DEFAULT_QUERY_GRANULARITY = "all"
 
   /**
    * The max simultaneous live connections per Druid server.
