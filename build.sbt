@@ -1,5 +1,5 @@
 
-val sparkVersion = "2.0.2"
+val sparkVersion = "2.1.2"
 val json4sVersion = "3.6.0-M2"
 val jodaVersion = "2.9.9"
 val curatorVersion = "4.0.1"
@@ -9,8 +9,6 @@ val apacheHttpVersion = "4.5.5"
 val myDependencies = Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-  "org.apache.spark" %% "spark-hive" % sparkVersion % "provided",
-  "org.apache.spark" %% "spark-hive-thriftserver" % sparkVersion % "provided",
   "org.json4s" %% "json4s-jackson" % json4sVersion,
   "joda-time" % "joda-time" % jodaVersion,
   "org.apache.curator" % "curator-framework" % curatorVersion,
