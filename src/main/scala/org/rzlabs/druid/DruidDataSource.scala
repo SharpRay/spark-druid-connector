@@ -85,6 +85,11 @@ trait DruidDataSourceCapability {
   def supportsBoundFilter: Boolean = druidVersion >= "0.9.0"
 }
 
+object DruidDataSourceCapability {
+  def supportsQueryGranularityMetadata(druidVersion: String): Boolean = druidVersion >= "0.9.1"
+  def supportsTimestampSpecMetadata(druidVersion: String): Boolean = druidVersion >= "0.9.2"
+}
+
 case class DruidDataSource(name: String,
                            var intervals: List[Interval],
                            columns: Map[String, DruidColumn],

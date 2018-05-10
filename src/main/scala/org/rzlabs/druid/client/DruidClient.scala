@@ -17,8 +17,7 @@ import org.apache.spark.sql.sources.druid.CloseableIterator
 import org.fasterxml.jackson.databind.ObjectMapper._
 import org.joda.time.{DateTime, Interval}
 import org.rzlabs.druid.metadata.DruidOptions
-import org.rzlabs.druid.Utils
-import org.rzlabs.druid.{DruidDataSource, DruidDataSourceException, DruidQueryGranularity, QuerySpec}
+import org.rzlabs.druid._
 
 import scala.util.Try
 
@@ -303,14 +302,16 @@ abstract class DruidClient(val host: String,
   @throws[DruidDataSourceException]
   def metadata(url: String,
                dataSource: String,
-               fullIndex: Boolean): DruidDataSource = {
+               fullIndex: Boolean,
+               druidVersion: String): DruidDataSource = {
 
     val in: Interval = timeBoundary(dataSource)
     // TODO: we do not fetch intervals of all segments for performence considerations.
     val ins: String =
       if (fullIndex) in.toString else in.withEnd(in.getStart.plusMillis(1)).toString
 
-    val payload: ObjectNode = jsonMapper.createObjectNode()
+    val payload: ObjectNode = if (!DruidDataSourceCapability.supportsQueryGranularityMetadata(druidVersion)) {
+      jsonMapper.createObjectNode()
       .put("queryType", "segmentMetadata")
       .put("dataSource", dataSource)
       .set("intervals", jsonMapper.createArrayNode()
@@ -318,11 +319,33 @@ abstract class DruidClient(val host: String,
       .set("analysisTypes", jsonMapper.createArrayNode()
         .add("cardinality")
         .add("interval")
-        .add("minmax")
+        .add("aggregators")).asInstanceOf[ObjectNode]
+      .put("merge", "true"
+    } else if (!DruidDataSourceCapability.supportsTimestampSpecMetadata(druidVersion)) {
+      jsonMapper.createObjectNode()
+      .put("queryType", "segmentMetadata")
+      .put("dataSource", dataSource)
+      .set("intervals", jsonMapper.createArrayNode()
+        .add(ins)).asInstanceOf[ObjectNode]
+      .set("analysisTypes", jsonMapper.createArrayNode()
+        .add("cardinality")
+        .add("interval")
+        .add("aggregators")
+        .add("queryGranularity")).asInstanceOf[ObjectNode]
+      .put("merge", "true")
+    } else {jsonMapper.createObjectNode()
+      .put("queryType", "segmentMetadata")
+      .put("dataSource", dataSource)
+      .set("intervals", jsonMapper.createArrayNode()
+        .add(ins)).asInstanceOf[ObjectNode]
+      .set("analysisTypes", jsonMapper.createArrayNode()
+        .add("cardinality")
+        .add("interval")
         .add("aggregators")
         .add("queryGranularity")
         .add("timestampSpec")).asInstanceOf[ObjectNode]
       .put("merge", "true")
+    }
 
     val resp: String = post(url, payload)
     logWarning(s"The json response of 'segmentMetadata' query: \n$resp")
@@ -388,8 +411,8 @@ class DruidQueryServerClient(host: String, port: Int, useSmile: Boolean = false)
   }
 
   @throws[DruidDataSourceException]
-  def metadata(dataSource: String, fullIndex: Boolean): DruidDataSource = {
-    metadata(url, dataSource, fullIndex)
+  def metadata(dataSource: String, fullIndex: Boolean, druidVersion: String): DruidDataSource = {
+    metadata(url, dataSource, fullIndex, druidVersion)
   }
 
   @throws[DruidDataSourceException]

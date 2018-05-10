@@ -221,7 +221,8 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
         val broker: String = druidClusterInfo.curatorConnection.getBroker
         brokerClient = new DruidQueryServerClient(broker, false)
         val fullIndex = options.loadMetadataFromAllSegments
-        val druidDS = brokerClient.metadata(dataSourceName, fullIndex)
+        val druidDS = brokerClient.metadata(dataSourceName, fullIndex,
+          druidClusterInfo.serverStatus.version)
           .copy(druidVersion = druidClusterInfo.serverStatus.version)
         druidClusterInfo.druidDataSources(dataSourceName) = druidDS
         logInfo(s"Druid datasource info for ${dataSourceName} is loaded.")
