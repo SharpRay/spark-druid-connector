@@ -320,7 +320,7 @@ abstract class DruidClient(val host: String,
         .add("cardinality")
         .add("interval")
         .add("aggregators")).asInstanceOf[ObjectNode]
-      .put("merge", "true"
+      .put("merge", "true")
     } else if (!DruidDataSourceCapability.supportsTimestampSpecMetadata(druidVersion)) {
       jsonMapper.createObjectNode()
       .put("queryType", "segmentMetadata")
