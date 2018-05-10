@@ -240,17 +240,6 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
 
   }
 
-  private def dataSourceFullAttributes(dqb: DruidQueryBuilder): Seq[Attribute] = {
-    dqb.druidRelationInfo.druidColumns.map {
-      case (colName: String, drCol: DruidRelationColumn) =>
-        val druidCol: Option[DruidColumn] = drCol.druidColumn
-        val dataType = if (druidCol.nonEmpty) {
-          DruidDataType.sparkDataType(druidCol.get.dataType)
-        } else StringType
-        AttributeReference(colName, dataType)()
-    }.toSeq
-  }
-
   private def buildPlan(dqb: DruidQueryBuilder,
                         druidSchema: DruidSchema,
                         druidQuery: DruidQuery,
@@ -261,7 +250,7 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
 
     val druidRelation = DruidRelation(dqb.druidRelationInfo, Some(druidQuery))(planner.sqlContext)
 
-    val fullAttributes = dataSourceFullAttributes(dqb)
+    val fullAttributes = druidSchema.schema
     val requiredColumnIndex = (0 until fullAttributes.size).toSeq
 
     val druidSparkPlan = postDruidStep(
@@ -273,7 +262,7 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
       //  UnknownPartitioning(0),
       //  Map(),
       //  None)
-      RowDataSourceScanExec(dataSourceFullAttributes(dqb),
+      RowDataSourceScanExec(fullAttributes,
         requiredColumnIndex,
         Set(),
         Set(),
