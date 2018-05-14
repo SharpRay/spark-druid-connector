@@ -14,7 +14,7 @@ This libaray is compatable with Spark-2.x and Druid-0.9.0+
 bin/spark-shell --jars spark-druid-connector-assembly-0.1.0-SNAPSHOT.jar
 ```
 
-In spark-shell,
+In spark-shell, a temp table could be created like this:
 
 ```
 val df = spark.read.format("org.rzlabs.druid").
@@ -23,6 +23,18 @@ val df = spark.read.format("org.rzlabs.druid").
   option("hyperUniqueColumnInfo", """[{"column":"city", "hllMetric": "unique_city"}]""").load
 df.createOrReplaceTempView("ds")
 spark.sql("select time, sum(event) from ds group by time").show
+```
+
+or you can create a hive table:
+
+```
+spark.sql("""
+  create table ds1 using org.rzlabs.druid options (
+    druidDatasource "ds1",
+    zkHost "localhost:2181",
+    hyperUniqueColumnInfo, "[{\"column\": \"city\", \"hllMetric\": \"unique_city\"}]"
+  )
+""")
 ```
 
 # Options
@@ -39,7 +51,7 @@ spark.sql("select time, sum(event) from ds group by time").show
 |maxConnectionsPerRoute|no|20|The max simultaneous live connections per Druid server|
 |maxConnections|no|100|The max simultaneous live connnections of the Druid cluster|
 |loadMetadataFromAllSegments|no|true|Fetch metadata from all available segments or not|
-|debugTransformations|no|false|lLog debug information about the transformations or not|
+|debugTransformations|no|false|Log debug informations about the transformations or not|
 |timeZoneId|no|UTC||
 |useV2GroupByEngine|no|false|Use V2 groupby engine or not|
 |useSmile|no|true|Use smile binary format as the data format exchanged between client and Druid servers|
