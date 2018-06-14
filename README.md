@@ -11,7 +11,7 @@ This libaray is compatable with Spark-2.x and Druid-0.9.0+
 ## Compile
 
 ```
-sbt assembly
+sbt clean assembly
 ```
 
 ## Using with spark-shell
