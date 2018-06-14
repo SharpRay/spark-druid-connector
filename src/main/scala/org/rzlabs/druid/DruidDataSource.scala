@@ -82,12 +82,18 @@ case class DruidMetric(name: String,
 
 trait DruidDataSourceCapability {
   def druidVersion: String
-  def supportsBoundFilter: Boolean = druidVersion >= "0.9.0"
+  def supportsBoundFilter: Boolean = false
 }
 
 object DruidDataSourceCapability {
-  def supportsQueryGranularityMetadata(druidVersion: String): Boolean = druidVersion >= "0.9.1"
-  def supportsTimestampSpecMetadata(druidVersion: String): Boolean = druidVersion >= "0.9.2"
+  private def newerVersion(druidVersion: String, oldVersion: String): Boolean = {
+    druidVersion.split("\\.").zip(oldVersion.split("\\.")).forall {
+      case (v1, v2) => v1.toInt >= v2.toInt
+    }
+  }
+  def supportsBoundFilter(druidVersion: String): Boolean = newerVersion(druidVersion, "0.9.0")
+  def supportsQueryGranularityMetadata(druidVersion: String): Boolean = newerVersion(druidVersion, "0.9.1")
+  def supportsTimestampSpecMetadata(druidVersion: String): Boolean = newerVersion(druidVersion, "0.9.2")
 }
 
 case class DruidDataSource(name: String,
@@ -117,6 +123,8 @@ case class DruidDataSource(name: String,
     case m: DruidMetric => true
     case _ => false
   }.map(m => m.name -> m.asInstanceOf[DruidMetric]).toMap
+
+  override def supportsBoundFilter: Boolean = DruidDataSourceCapability.supportsBoundFilter(druidVersion)
 
   def numDimensions = dimensions.size
 
