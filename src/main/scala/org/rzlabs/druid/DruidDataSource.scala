@@ -86,14 +86,27 @@ trait DruidDataSourceCapability {
 }
 
 object DruidDataSourceCapability {
-  private def newerVersion(druidVersion: String, oldVersion: String): Boolean = {
-    druidVersion.split("\\.").zip(oldVersion.split("\\.")).forall {
-      case (v1, v2) => v1.toInt >= v2.toInt
+  private def versionCompare(druidVersion: String, oldVersion: String): Int = {
+    def compare(v1: Int, v2: Int) = {
+      (v1 - v2) match {
+        case 0 => 0
+        case v if v > 0 => 1
+        case _ => -1
+      }
     }
+    druidVersion.split("\\.").zip(oldVersion.split("\\.")).foldLeft(Option.empty[Int]) {
+      (l, r) => l match {
+        case None | Some(0) => Some(compare(r._1.toInt, r._2.toInt))
+        case res @ (Some(-1) | Some(1)) => res
+      }
+    }.get
   }
-  def supportsBoundFilter(druidVersion: String): Boolean = newerVersion(druidVersion, "0.9.0")
-  def supportsQueryGranularityMetadata(druidVersion: String): Boolean = newerVersion(druidVersion, "0.9.1")
-  def supportsTimestampSpecMetadata(druidVersion: String): Boolean = newerVersion(druidVersion, "0.9.2")
+  def supportsBoundFilter(druidVersion: String): Boolean =
+    versionCompare(druidVersion, "0.9.0") >= 0
+  def supportsQueryGranularityMetadata(druidVersion: String): Boolean =
+    versionCompare(druidVersion, "0.9.1") >= 0
+  def supportsTimestampSpecMetadata(druidVersion: String): Boolean =
+    versionCompare(druidVersion, "0.9.2") >= 0
 }
 
 case class DruidDataSource(name: String,
