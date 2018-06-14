@@ -8,6 +8,12 @@ This libaray is compatable with Spark-2.x and Druid-0.9.0+
 
 # Usage
 
+## Compile
+
+```
+sbt assembly
+```
+
 ## Using with spark-shell
 
 ```
