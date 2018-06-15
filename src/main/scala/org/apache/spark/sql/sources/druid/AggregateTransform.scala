@@ -315,10 +315,7 @@ trait AggregateTransform {
         aggrs.find(_._1 == dc.hllMetric.get.name).map { aggr =>
           DruidDataType.withName(aggr._2.`type`) == DruidDataType.HyperUnique
         }.getOrElse(false)
-      }.getOrElse { // Have no aggregators info got from MetadataResponse.
-        // We do not retain the hyperUnique or thetaSketch metric columns.
-        !dqb.druidRelationInfo.druidColumns.exists(_._1 == dc.hllMetric.get.name)
-      }
+      }.getOrElse(true) // Have no aggregators info got from MetadataResponse.
     } else false
   }
 
@@ -329,10 +326,7 @@ trait AggregateTransform {
         aggrs.find(_._1 == dc.sketchMetric.get.name).map { aggr =>
           DruidDataType.withName(aggr._2.`type`) == DruidDataType.ThetaSketch
         }.getOrElse(false)
-      }.getOrElse { // Have no aggregators info got from MetadataResponse.
-        // We do not retain the hyperUnique or thetaSketch metric columns.
-        !dqb.druidRelationInfo.druidColumns.exists(_._1 == dc.hllMetric.get.name)
-      }
+      }.getOrElse(true) // Have no aggregators info got from MetadataResponse.
     } else false
   }
 
