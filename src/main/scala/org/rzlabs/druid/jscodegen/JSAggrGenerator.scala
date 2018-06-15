@@ -104,13 +104,13 @@ case class JSAggrGenerator(dqb: DruidQueryBuilder, aggrFunc: AggregateFunction,
 
 object JSAggrGenerator {
 
-  def jsAvgCandidate(dqb: DruidQueryBuilder, af: AggregateFunction) = {
-    af match {
-      case Average(_) if (af.children.size == 1 &&
-        !af.children.head.isInstanceOf[LeafExpression]) => true
-      case _ => false
-    }
-  }
+//  def jsAvgCandidate(dqb: DruidQueryBuilder, af: AggregateFunction) = {
+//    af match {
+//      case Average(_) if (af.children.size == 1 &&
+//        !af.children.head.isInstanceOf[LeafExpression]) => true
+//      case _ => false
+//    }
+//  }
 
   def simplifyExpr(dqb: DruidQueryBuilder, e: Expression, timeZone: String):
   Option[(Expression, String)] = {

@@ -35,7 +35,8 @@ trait AggregateTransform {
     (dqb, aggrExpr, aggrExpr.aggregateFunction) match {
       case (_, _, Count(_)) =>
         Some(addCountAgg(dqb, aggrExpr))
-      case (_, ae, fn) if JSAggrGenerator.jsAvgCandidate(dqb, fn) =>
+      //case (_, ae, fn) if JSAggrGenerator.jsAvgCandidate(dqb, fn) =>
+      case (_, _, fn @ Average(_)) =>
         // Based on the same reason (cannot know the denominator metric)
         // we just throw a DruidDataSourceException.
         throw new DruidDataSourceException(s"${fn.toAggString(false)} calculation may " +
