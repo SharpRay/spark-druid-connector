@@ -30,7 +30,7 @@ trait AggregateTransform {
       outputAttribute(outputName, aggrExpr, aggrExpr.dataType, LongType)
   }
 
-  private def setAggregationInfo(dqb: DruidQueryBuilder, aggrExpr: AggregateExpression) = {
+  private def setAggregationSpecs(dqb: DruidQueryBuilder, aggrExpr: AggregateExpression) = {
 
     (dqb, aggrExpr, aggrExpr.aggregateFunction) match {
       case (_, _, Count(_)) =>
@@ -111,7 +111,7 @@ trait AggregateTransform {
     }
   }
 
-  private def setGroupingInfo(dqb: DruidQueryBuilder,
+  private def setDimensionSpecs(dqb: DruidQueryBuilder,
                               timeElemExtractor: SparkNativeTimeElementExtractor,
                               primitiveExtractionFunction: PrimitiveExtractionFunction,
                               grpExpr: Expression
@@ -160,7 +160,7 @@ trait AggregateTransform {
     }
   }
 
-  private def transformGrouping(dqb: DruidQueryBuilder,
+  private def transformAggregation(dqb: DruidQueryBuilder,
                                    aggOp: Aggregate,
                                    grpExprs: Seq[Expression],
                                    aggrExprs: Seq[NamedExpression]
@@ -170,7 +170,7 @@ trait AggregateTransform {
     val primitiveExtractionFunction = new PrimitiveExtractionFunction(dqb)
 
     val dqb1 = grpExprs.foldLeft(Some(dqb).asInstanceOf[Option[DruidQueryBuilder]]) {
-      (odqb, e) => odqb.flatMap(setGroupingInfo(_, timeElemExtractor,
+      (odqb, e) => odqb.flatMap(setDimensionSpecs(_, timeElemExtractor,
         primitiveExtractionFunction, e))
     }
 
@@ -178,7 +178,7 @@ trait AggregateTransform {
     val allAggrExprs = aggExpressions(aggrExprs)
 
     val dqb2 = allAggrExprs.foldLeft(dqb1) {
-      (dqb, ae) => dqb.flatMap(setAggregationInfo(_, ae))
+      (dqb, ae) => dqb.flatMap(setAggregationSpecs(_, ae))
     }
 
     dqb2.map(_.aggregateOp(aggOp))
@@ -387,7 +387,7 @@ trait AggregateTransform {
         // There is no distinct aggregate expressions.
         // Returns Nil if plan returns Nil.
         plan(dqb, child).flatMap { dqb =>
-          transformGrouping(dqb, agg, grpExprs, aggrExprs)
+          transformAggregation(dqb, agg, grpExprs, aggrExprs)
         }
       }
     case _ => Nil

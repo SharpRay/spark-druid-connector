@@ -62,7 +62,7 @@ case class MetadataResponse(id: String,
                             numRows: Option[Long],
                             aggregators: Option[Map[String, Aggregator]] = None,
                             timestampSpec: Option[TimestampSpec] = None,
-                            queryGranularity: Option[DruidQueryGranularity]) {
+                            queryGranularity: Option[DruidQueryGranularity] = None) {
 
   def getIntervals: List[Interval] = intervals.map(Interval.parse(_))
 
