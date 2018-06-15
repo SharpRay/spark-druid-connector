@@ -1,13 +1,13 @@
 package org.rzlabs.druid
 
 import org.joda.time.{DateTime, Interval}
-import org.rzlabs.druid.metadata.DruidRelationInfo
+import org.rzlabs.druid.metadata.{DruidMetadataCache, DruidRelationInfo}
 
 case class QueryIntervals(druidRelationInfo: DruidRelationInfo,
                           intervals: List[Interval] = Nil) {
 
   // The whole interval of Druid data source indexed data.
-  val indexIntervals = druidRelationInfo.druidDataSource.intervals
+  var indexIntervals = druidRelationInfo.druidDataSource.intervals
 
   private def indexInterval(dt: DateTime): Option[Interval] = {
     indexIntervals.find(_.contains(dt))
@@ -55,12 +55,27 @@ case class QueryIntervals(druidRelationInfo: DruidRelationInfo,
     } else None
   }
 
+  private def updateIndexInterval: Boolean = {
+    indexIntervals.synchronized {
+      val newIn = DruidMetadataCache.brokerClient.timeBoundary(druidRelationInfo.druidDataSource.name)
+      if (newIn != indexIntervals.head) {
+        druidRelationInfo.druidDataSource.intervals = List(newIn)
+        indexIntervals = druidRelationInfo.druidDataSource.intervals
+        true
+      } else false
+    }
+  }
+
   def ltCond(dt: DateTime): Option[QueryIntervals] = {
     indexInterval(dt).map { in =>
       val newIn = in.withEnd(dt)
       add(newIn)
     } orElse {
-      outsideIndexRange(dt, IntervalConditionType.LT)
+      if (updateIndexInterval) {
+        ltCond(dt)
+      } else {
+        outsideIndexRange(dt, IntervalConditionType.LT)
+      }
     }
   }
 
@@ -69,7 +84,11 @@ case class QueryIntervals(druidRelationInfo: DruidRelationInfo,
       val newIn = in.withEnd(dt.plusMillis(1)) // This because interval's end is excluded.
       add(newIn)
     } orElse {
-      outsideIndexRange(dt, IntervalConditionType.LTE)
+      if(updateIndexInterval) {
+        lteCond(dt)
+      } else {
+        outsideIndexRange(dt, IntervalConditionType.LTE)
+      }
     }
   }
 
@@ -78,7 +97,11 @@ case class QueryIntervals(druidRelationInfo: DruidRelationInfo,
       val newIn = in.withStart(dt.plusMillis(1)) // This because interval's end is included.
       add(newIn)
     } orElse {
-      outsideIndexRange(dt, IntervalConditionType.GT)
+      if (updateIndexInterval) {
+        gtCond(dt)
+      } else {
+        outsideIndexRange(dt, IntervalConditionType.GT)
+      }
     }
   }
 
@@ -87,7 +110,11 @@ case class QueryIntervals(druidRelationInfo: DruidRelationInfo,
       val newIn = in.withStart(dt)
       add(newIn)
     } orElse {
-      outsideIndexRange(dt, IntervalConditionType.GTE)
+      if (updateIndexInterval) {
+        gteCond(dt)
+      } else {
+        outsideIndexRange(dt, IntervalConditionType.GTE)
+      }
     }
   }
 

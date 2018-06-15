@@ -146,7 +146,7 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
 
   private[metadata] val cache: MMap[String, DruidClusterInfo] = MMap() // zkHost -> DruidClusterInfo
   private val curatorConnections: MMap[String, CuratorConnection] = MMap()
-  private var brokerClient: DruidQueryServerClient = null
+  private[druid] var brokerClient: DruidQueryServerClient = null
   val threadPool = MyThreadUtils.newDaemonCachedThreadPool("druidZkEventExec", 10)
 
   /**
@@ -166,16 +166,18 @@ object DruidMetadataCache extends DruidMetadataCache with MyLogging with DruidRe
       case (_, druidClusterInfo) => {
         val dDS: Option[DruidDataSource] = druidClusterInfo.druidDataSources.get(dataSource)
         if (dDS.isDefined) {  // find the dataSource the interval should be updated.
-          val oldInterval: Interval = dDS.get.intervals(0)
-          action.toUpperCase match {
-            case "LOAD" =>
-              // Don't call `timeBoundary` to update interval (cost to much).
-              val newInterval = Utils.updateInterval(oldInterval, new Interval(interval), action)
-              dDS.get.intervals = List(newInterval)
-            case "DROP" =>
-              // Call `timeBoundary` to update interval.
-              dDS.get.intervals = List(brokerClient.timeBoundary(dataSource))
-            case other => logWarning(s"Unkown segment action '$other'")
+          dDS.synchronized {
+            val oldInterval: Interval = dDS.get.intervals(0)
+            action.toUpperCase match {
+              case "LOAD" =>
+                // Don't call `timeBoundary` to update interval (cost to much).
+                val newInterval = Utils.updateInterval(oldInterval, new Interval(interval), action)
+                dDS.get.intervals = List(newInterval)
+              case "DROP" =>
+                // Call `timeBoundary` to update interval.
+                dDS.get.intervals = List(brokerClient.timeBoundary(dataSource))
+              case other => logWarning(s"Unkown segment action '$other'")
+            }
           }
           logInfo(s"The new interval of dataSource $dataSource is ${dDS.get.intervals(0)}")
         } // else do nothing
