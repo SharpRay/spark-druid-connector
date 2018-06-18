@@ -67,7 +67,7 @@ spark.sql("""
 ## Currently
 
 * Direct table creating in Spark without requiring of base table.
-* Support Aggregate and Select & Filter operators pushing down and transform to GROUPBY and SCAN query against Druid accordingly.
+* Support Aggregate and Project & Filter operators pushing down and transform to GROUPBY and SCAN query against Druid accordingly.
 * Support majority of primitive filter specs, aggregation specs and extraction functions.
 * Lightweight datasource metadata updating.
 
