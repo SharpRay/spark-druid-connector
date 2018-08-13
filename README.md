@@ -1,7 +1,6 @@
 # spark-druid-connector
 
-A library for querying Druid data sources with Apache Spark which based on project https://github.com/SparklineData/spark-druid-olap
-
+A library for querying Druid data sources with Apache Spark.
 # Compatability
 
 This libaray is compatable with Spark-2.x and Druid-0.9.0+
