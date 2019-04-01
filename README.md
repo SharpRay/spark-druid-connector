@@ -24,7 +24,7 @@ In spark-shell, a temp table could be created like this:
 ```
 val df = spark.read.format("org.rzlabs.druid").
   option("druidDatasource", "ds1").
-  option("zkHost": "localhost:2181").
+  option("zkHost", "localhost:2181").
   option("hyperUniqueColumnInfo", """[{"column":"city", "hllMetric": "unique_city"}]""").load
 df.createOrReplaceTempView("ds")
 spark.sql("select time, sum(event) from ds group by time").show
