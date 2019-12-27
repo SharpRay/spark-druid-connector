@@ -67,7 +67,7 @@ class DruidRDD(sqlContext: SQLContext,
                       ): Iterator[InternalRow] = {
     val partition = split.asInstanceOf[DruidPartition]
     val qrySpec = partition.setIntervalsOnQuerySpec(druidQuery.qrySpec)
-    log.info("Druid querySpec: " + Utils.toPrettyJson(Left(qrySpec)))
+    //log.info("Druid querySpec: " + Utils.toPrettyJson(Left(qrySpec)))
 
 
     var cancelCallback: TaskCancelHandler.TaskCancelHolder = null
