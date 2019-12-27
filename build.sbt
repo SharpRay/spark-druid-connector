@@ -9,7 +9,6 @@ val apacheHttpVersion = "4.5.5"
 val myDependencies = Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
   "org.apache.spark" %% "spark-sql" % sparkVersion % "provided",
-  "org.json4s" %% "json4s-jackson" % json4sVersion,
   "joda-time" % "joda-time" % jodaVersion,
   "org.apache.curator" % "curator-framework" % curatorVersion,
   "com.fasterxml.jackson.core" % "jackson-core" % jacksonVersion,
