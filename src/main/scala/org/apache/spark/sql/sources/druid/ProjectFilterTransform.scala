@@ -32,6 +32,10 @@ trait ProjectFilterTransform {
       for (dqbc <- projectExpression(dqb, ar, joinAttrs, ignoreProjectList)) yield
         dqbc.addAlias(nm, nm1)
     }
+    case Alias(c @ Cast(ar @ AttributeReference(nm1, _, _, _), _, _), nm) => {
+      for (dqbc <- projectExpression(dqb, ar, joinAttrs, ignoreProjectList)) yield
+        dqb.addAlias(nm, nm1)
+    }
     case _ => addUnpushedAttributes(dqb, projectExpr, true)
   }
 
@@ -222,6 +226,7 @@ trait ProjectFilterTransform {
       // are based on.
       val dqb: Option[DruidQueryBuilder] = Some(DruidQueryBuilder(info))
       val (newFilters, dqb1) = ExprUtil.simplifyConjPred(dqb.get, filters)
+    println("druidRelationTransform")
       translateProjectFilter(Some(dqb1), projectList, newFilters)
     case _ => Nil
   }

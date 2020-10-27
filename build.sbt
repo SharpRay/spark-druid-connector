@@ -1,10 +1,13 @@
 
-val sparkVersion = "2.3.0"
+val sparkVersion = "2.4.4"
+// val scalaVersion = "2.11.12"
+// val scalaBinaryVersion = "2.11"
 val json4sVersion = "3.6.0-M2"
-val jodaVersion = "2.9.9"
-val curatorVersion = "4.0.1"
-val jacksonVersion = "2.6.5"
-val apacheHttpVersion = "4.5.5"
+val jodaVersion = "2.9.3"
+val curatorVersion = "2.6.0"
+val jacksonVersion = "2.6.7"
+val jacksonDatabindVersion = "2.6.7.1"
+val apacheHttpVersion = "4.5.6"
 
 val myDependencies = Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
@@ -13,8 +16,8 @@ val myDependencies = Seq(
   "org.apache.curator" % "curator-framework" % curatorVersion,
   "com.fasterxml.jackson.core" % "jackson-core" % jacksonVersion,
   "com.fasterxml.jackson.core" % "jackson-annotations" % jacksonVersion,
-  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonVersion,
-  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonVersion,
+  "com.fasterxml.jackson.core" % "jackson-databind" % jacksonDatabindVersion,
+  "com.fasterxml.jackson.module" %% "jackson-module-scala" % jacksonDatabindVersion,
   "com.fasterxml.jackson.dataformat" % "jackson-dataformat-smile" % jacksonVersion,
   "com.fasterxml.jackson.datatype" % "jackson-datatype-joda" % jacksonVersion,
   "com.fasterxml.jackson.jaxrs" % "jackson-jaxrs-smile-provider" % jacksonVersion,
@@ -25,7 +28,7 @@ lazy val commonSettings = Seq(
   organization := "org.rzlabs",
   version := "0.1.0-SNAPSHOT",
   
-  scalaVersion := "2.11.8"
+  scalaVersion := "2.11.12"
 )
 
 lazy val root = (project in file("."))
