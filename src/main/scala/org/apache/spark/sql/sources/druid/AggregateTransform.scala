@@ -186,8 +186,6 @@ trait AggregateTransform {
   }
 
   private def attrRefName(e: Expression): Option[String] = {
-    println("attrRefName")
-    println(e)
     e match {
       case AttributeReference(nm, _, _, _) => Some(nm)
       case Cast(AttributeReference(nm, _, _, _), _, _) => Some(nm)
@@ -361,22 +359,17 @@ trait AggregateTransform {
   val aggregateTransform: DruidTransform = {
 
     case (dqb, Aggregate(_, _, Aggregate(_, _, Expand(_, _, _)))) =>
-      println("(dqb, Aggregate(_, _, Aggregate(_, _, Expand(_, _, _))))")
       // There are more than 1 distinct aggregate expressions.
       // Because Druid cannot handle accurate distinct operation,
       // so we do not push aggregation down to Druid.
       throw new DruidDataSourceException("Currently the DISTINCT operation is not permitted. " +
         "If you submit a COUNT(DISTINCT) aggregation function, " +
         "please use APPROX_COUNT_DISTINCT instead.")
-    case (_, Aggregate(_, _, Aggregate(_, _, _))) => {
-      println("(_, Aggregate(_, _, Aggregate(_, _, _)))")
-      Nil
-    }
+    case (_, Aggregate(_, _, Aggregate(_, _, _))) => Nil
     case (dqb, agg @ Aggregate(grpExprs, aggrExprs, child)) =>
       // There is 1 distinct aggregate expressions.
       // Because Druid cannot handle accurate distinct operation,
       // so we do not push aggregation down to Druid.
-      println("(dqb, agg @ Aggregate(grpExprs, aggrExprs, child))")
       if (aggrExprs.exists {
         case ne: NamedExpression => ne.find {
           case ae: AggregateExpression if ae.isDistinct => true
@@ -393,9 +386,6 @@ trait AggregateTransform {
           transformAggregation(dqb, agg, grpExprs, aggrExprs)
         }
       }
-    case _ => {
-      println("_")
-      Nil
-    }
+    case _ => Nil
   }
 }
