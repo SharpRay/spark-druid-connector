@@ -190,6 +190,7 @@ trait AggregateTransform {
       case AttributeReference(nm, _, _, _) => Some(nm)
       case Cast(AttributeReference(nm, _, _, _), _, _) => Some(nm)
       case Alias(AttributeReference(nm, _, _, _), _) => Some(nm)
+      case Alias(Cast(AttributeReference(nm, _, _, _), _, _), _) => Some(nm)
       case _ => None
     }
   }

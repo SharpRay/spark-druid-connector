@@ -348,14 +348,14 @@ abstract class DruidClient(val host: String,
     }
 
     val resp: String = post(url, payload)
-    logWarning(s"The json response of 'segmentMetadata' query: \n$resp")
+    logDebug(s"The json response of 'segmentMetadata' query: \n$resp")
 
     // substitute `queryGranularity` field value if needed.
     // TODO: The truth is that multiple paths may exist because different columns
     //       set will be occurs for different intervals.
     val resp1 = jsonMapper.writeValueAsString(DruidQueryGranularity.substitute(
       jsonMapper.readTree(resp).path(0)))
-    logWarning(s"After substitution, the json: \n$resp1")
+    logDebug(s"After substitution, the json: \n$resp1")
 
     val mr: MetadataResponse =
       jsonMapper.readValue(resp1, new TypeReference[MetadataResponse] {})

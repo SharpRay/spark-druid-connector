@@ -35,6 +35,7 @@ private[sql] class DruidStrategy(planner: DruidPlanner) extends Strategy
       // Just in the case that Project operator as current logical plan
       // the query spec will be generated
       case Project(projectList, _) => scanPlan(dqb, projectList)
+      case a if a.isInstanceOf[LogicalPlan] => scanPlan(dqb, dqb.origProjectList.get)
       case _ => null
     }
   }

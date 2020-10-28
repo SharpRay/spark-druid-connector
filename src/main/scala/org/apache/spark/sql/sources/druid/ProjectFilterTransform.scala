@@ -32,6 +32,10 @@ trait ProjectFilterTransform {
       for (dqbc <- projectExpression(dqb, ar, joinAttrs, ignoreProjectList)) yield
         dqbc.addAlias(nm, nm1)
     }
+    case Alias(c @ Cast(ar @ AttributeReference(nm1, _, _, _), _, _), nm) => {
+      for (dqbc <- projectExpression(dqb, ar, joinAttrs, ignoreProjectList)) yield
+        dqb.addAlias(nm, nm1)
+    }
     case _ => addUnpushedAttributes(dqb, projectExpr, true)
   }
 
